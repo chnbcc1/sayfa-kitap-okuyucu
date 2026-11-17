@@ -1,5 +1,5 @@
 {
-  "version": "0.1.6",
+  "version": "0.1.7",
   "released": "2026-11-18",
-  "summary": "PDF açılışında 4.x/3.x işçi sürümü uyuşmazlığı giderildi; kayıtlı kitaplar korunuyor."
+  "summary": "Kitaplık ZIP yedekleme, yedek doğrulama, geri yükleme, SHA-256 dosya kontrolü ve yumuşak kıvrımlı sayfa geçişi."
 }

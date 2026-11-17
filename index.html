@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#f5f1e9">
+  <meta name="description" content="Sayfa: Çevrimdışı kişisel kitaplık, PDF okuma ve kalemle not alma.">
+  <title>Sayfa — Kişisel Kitaplığım</title>
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+<div id="app">
+  <header class="topbar">
+    <button id="backBtn" class="icon-btn hidden" title="Kitaplığa dön" aria-label="Kitaplığa dön">←</button>
+    <div class="brand"><div class="brand-icon">S</div><div><strong>Sayfa</strong><small>kişisel kitaplığım</small></div></div>
+    <div class="top-actions">
+      <span id="storageNote" class="muted mobile-hide">Kitaplar cihazında saklanır</span>
+      <button id="themeBtn" class="icon-btn" title="Görünümü değiştir" aria-label="Görünümü değiştir">☾</button>
+      <button id="helpBtn" class="icon-btn" title="Yardım" aria-label="Yardım">?</button>
+    </div>
+  </header>
+  <main id="libraryScreen" class="library-screen">
+    <div class="hero">
+      <div><p class="eyebrow">KENDİ DİJİTAL KÜTÜPHANEN</p><h1>Her kitap,<br><em>yeni bir yolculuk.</em></h1><p>Kitaplarını ekle, kaldığın yerden devam et, dilediğin gibi not al.</p></div>
+      <button id="importBtn" class="primary-btn">＋ Kitap ekle</button>
+    </div>
+    <div class="section-heading"><div><h2>Kitaplığım</h2><p id="bookCount">Henüz kitabın yok</p></div><input id="searchInput" type="search" placeholder="Kitap ara…" aria-label="Kitap ara"></div>
+    <div id="libraryEmpty" class="empty-state"><div class="empty-icon">📖</div><h3>İlk kitabın burada başlayacak</h3><p>PDF dosyanı ekleyerek kişisel kitaplığını oluştur.</p><button id="emptyImportBtn" class="secondary-btn">PDF seç</button></div>
+    <div id="bookGrid" class="book-grid"></div>
+    <p class="privacy-note">🔒 Kitapların ve notların bu tarayıcıdaki cihaz depolama alanında tutulur. Önemli kitaplarının orijinal PDF'lerini ayrıca yedekle.</p>
+  </main>
+  <main id="readerScreen" class="reader-screen hidden">
+    <div class="reader-toolbar">
+      <div class="reader-title"><span id="readerBookTitle">Kitap</span><small id="saveStatus">Hazır</small></div>
+      <div class="reader-actions">
+        <button id="bookmarkBtn" class="tool-mini" title="Yer imi ekle/kaldır">☆ <span class="desktop-label">Yer imi</span></button>
+        <button id="notesListBtn" class="tool-mini" title="Bu sayfadaki notlar">▤ <span class="desktop-label">Notlar</span></button>
+        <button id="pageAnimationBtn" class="tool-mini" title="Sayfa geçiş animasyonu">◫ <span class="desktop-label">Animasyon</span></button>
+        <button id="penToolbarBtn" class="tool-mini selected" title="Kalem menüsünü aç/kapat">✎ <span class="desktop-label">Kalemler</span></button>
+      </div>
+    </div>
+    <section id="penPanel" class="pen-panel" aria-label="Kalem araçları">
+      <div class="pen-tools" id="penTools">
+        <button type="button" class="pen-tool selected" data-tool="hand" title="Sayfa ve kaydırma"><span>☞</span><small>Oku</small></button>
+        <button type="button" class="pen-tool" data-tool="pencil" title="Kurşun kalem"><span>✎</span><small>Kurşun</small></button>
+        <button type="button" class="pen-tool" data-tool="marker" title="Keçeli kalem"><span>🖊</span><small>Keçeli</small></button>
+        <button type="button" class="pen-tool" data-tool="highlighter" title="Fosforlu kalem"><span>▰</span><small>Fosforlu</small></button>
+        <button type="button" class="pen-tool" data-tool="underline" title="Altını çiz"><span><u>A</u></span><small>Altını çiz</small></button>
+        <button type="button" class="pen-tool" data-tool="strike" title="Üstünü çiz"><span><s>A</s></span><small>Üstünü çiz</small></button>
+        <button type="button" class="pen-tool" data-tool="note" title="Metin notu"><span>▤</span><small>Not</small></button>
+        <button type="button" class="pen-tool" data-tool="eraser" title="Silgi"><span>▱</span><small>Silgi</small></button>
+      </div>
+      <div class="pen-options">
+        <div class="color-palette" id="colorPalette" aria-label="Kalem rengi"></div>
+        <label class="size-label">Kalınlık <input id="widthSlider" type="range" min="1" max="12" value="4"><output id="widthOutput">4 / 12</output></label>
+        <svg class="line-preview" id="linePreview" viewBox="0 0 160 30" aria-label="Çizgi önizleme"><path id="previewPath" d="M8 19 Q48 6 83 17 T152 13" fill="none" stroke="#333" stroke-linecap="round" stroke-width="4"/></svg>
+        <div class="undo-row"><button id="undoBtn" title="Geri al" aria-label="Geri al">↶</button><button id="redoBtn" title="İleri al" aria-label="İleri al">↷</button></div>
+      </div>
+    </section>
+    <div id="viewerArea" class="viewer-area">
+      <button id="previousPageFloat" class="page-float left" aria-label="Önceki sayfa">‹</button>
+      <div id="pageSheet" class="page-sheet">
+        <canvas id="pdfCanvas"></canvas>
+        <img id="imagePage" class="hidden" alt="Kitap sayfası">
+        <canvas id="annotationCanvas" aria-label="Sayfa üzerine çizim alanı"></canvas>
+        <div id="notePins" class="note-pins"></div>
+        <div id="pageSpinner" class="page-spinner">Sayfa hazırlanıyor…</div>
+      </div>
+      <button id="nextPageFloat" class="page-float right" aria-label="Sonraki sayfa">›</button>
+    </div>
+    <footer class="page-footer"><button id="prevPageBtn" aria-label="Önceki sayfa">← Önceki</button><div><span id="pageCount">1 / 1</span><input id="pageSlider" type="range" min="1" max="1" value="1" aria-label="Sayfa numarası"></div><button id="nextPageBtn" aria-label="Sonraki sayfa">Sonraki →</button></footer>
+  </main>
+  <input id="fileInput" class="hidden" type="file" accept="application/pdf,.pdf" multiple>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+</div>
+<dialog id="importDialog" class="modal"><form method="dialog"><h3>Kitabı nasıl saklayalım?</h3><p id="importFilename"></p><label class="radio-choice"><input type="radio" name="importMode" value="original" checked><span><strong>PDF'yi olduğu gibi koru</strong><small>Metin, bağlantılar ve sayfa kalitesi bozulmaz.</small></span></label><label class="radio-choice"><input type="radio" name="importMode" value="balanced"><span><strong>Görsel kitap olarak sıkıştır — dengeli</strong><small>Sayfaları WebP/JPEG görüntülere dönüştürür. Metin seçimi kaybolur.</small></span></label><label class="radio-choice"><input type="radio" name="importMode" value="strong"><span><strong>Maksimum sıkıştırma</strong><small>Daha düşük çözünürlük; küçük yazılar bulanıklaşabilir.</small></span></label><p class="hint">Görüntüye dönüştürme sonucunda dosya küçülmezse orijinal PDF saklanır. Büyük kitaplarda işlem uzun sürebilir.</p><div class="modal-actions"><button value="cancel">Vazgeç</button><button value="ok" class="primary-btn">İçe aktar</button></div></form></dialog>
+<dialog id="noteDialog" class="modal"><form method="dialog"><h3>Sayfa notu</h3><textarea id="noteText" rows="6" placeholder="Bu sayfadaki düşünceleriniz…"></textarea><div class="modal-actions"><button id="deleteNoteBtn" type="button" class="danger-btn hidden">Notu sil</button><button value="cancel">Vazgeç</button><button id="saveNoteBtn" type="button" class="primary-btn">Kaydet</button></div></form></dialog>
+<dialog id="helpDialog" class="modal"><form method="dialog"><h3>Sayfa nasıl kullanılır?</h3><p><strong>Kitap:</strong> PDF ekle; kitaplar bu cihazın tarayıcı depolama alanında saklanır. Kitaba tıklayınca kaldığın sayfa açılır.</p><p><strong>Kalem:</strong> Önce bir kalem türü, renk ve kalınlık seç; ardından sayfanın üzerine çiz. “Oku” ile sayfayı normal kaydır.</p><p><strong>Not:</strong> “Not” aracını seçip sayfaya dokun; daha sonra çıkan işarete dokunarak düzenle.</p><p><strong>Silgi:</strong> Bir çizginin üzerine dokun veya üzerinden sürükle. Geri al / ileri al kullanılabilir.</p><p><strong>Sayfalar:</strong> Alt çubuk, ok tuşları veya klavyede sağ/sol ok ile geçiş yap.</p><p class="hint">Sıkıştırılmış görsel kitaplarda metin seçilemez. Depolama alanı veya tarayıcı verileri silinirse kitaplar kaybolabilir.</p><div class="modal-actions"><button value="ok" class="primary-btn">Anladım</button></div></form></dialog>
+<script type="module" src="./app.js"></script>
+</body>
+</html>

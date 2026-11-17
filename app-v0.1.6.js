@@ -190,6 +190,15 @@ async function importFile(file){if(!file||!file.name.toLowerCase().endsWith('.pd
     stage='PDF sayfaları okunuyor';
     doc=await getPDF(safeBlob);
     if(!doc.numPages)throw new Error('PDF sayfaları bulunamadı.');
+    // Linearized PDFs may report a page count even when their page tree is
+    // incomplete; verify that both ends of the document actually open.
+    stage='PDF sayfaları doğrulanıyor';
+    try{
+      await doc.getPage(1);
+      if(doc.numPages>1)await doc.getPage(doc.numPages);
+    }catch(checkError){
+      throw new Error('PDF eksik veya bozuk. İlk/son sayfalar açılamıyor. '+(checkError?.message||checkError));
+    }
     stage='Kapak önizlemesi hazırlanıyor';
     let cover=null;
     try{cover=await coverFor(doc);}catch(coverError){console.warn('Kapak önizlemesi atlandı:',coverError);}

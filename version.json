@@ -1,5 +1,5 @@
 {
-  "version": "0.1.5",
+  "version": "0.1.6",
   "released": "2026-11-18",
-  "summary": "Dokunarak kitap adını değiştirme ve silme; kıvrımlı sayfa çevirme; eksik/bozuk PDF uyarısı"
+  "summary": "PDF açılışında 4.x/3.x işçi sürümü uyuşmazlığı giderildi; kayıtlı kitaplar korunuyor."
 }

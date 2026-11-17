@@ -1,5 +1,5 @@
-const CACHE='sayfa-shell-v0.1.6';
-const LOCAL=['./','./index.html','./style.css','./app-v0.1.6.js','./version.json','./icon.svg','./manifest.webmanifest'];
+const CACHE='sayfa-shell-v0.1.7';
+const LOCAL=['./','./index.html','./style.css','./app-v0.1.7.js','./safety-v0.1.7.js','./backup-v0.1.7.js','./version.json','./icon.svg','./manifest.webmanifest'];
 self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(LOCAL)));self.skipWaiting();});
 self.addEventListener('activate',event=>{event.waitUntil((async()=>{for(const key of await caches.keys())if(key!==CACHE)await caches.delete(key);await self.clients.claim();})());});
 self.addEventListener('fetch',event=>{if(event.request.method!=='GET')return;const url=new URL(event.request.url);if(url.origin===self.location.origin||url.hostname==='cdnjs.cloudflare.com'){event.respondWith((async()=>{const cache=await caches.open(CACHE);const existing=await cache.match(event.request);if(url.origin!==self.location.origin&&existing)return existing;try{const response=await fetch(event.request);if(response.ok)await cache.put(event.request,response.clone());return response;}catch(e){return existing||Response.error();}})());}});

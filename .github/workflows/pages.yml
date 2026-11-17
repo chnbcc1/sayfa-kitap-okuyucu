@@ -29,6 +29,8 @@ jobs:
         uses: actions/upload-pages-artifact@v3
         with:
           path: '.'
+      - name: Yayın paketinin kullanılabilir olmasını bekle
+        run: sleep 12
       - name: GitHub Pages'e yayınla
         id: deployment
         uses: actions/deploy-pages@v4

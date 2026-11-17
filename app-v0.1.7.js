@@ -384,88 +384,107 @@ function makePageFlipSnapshot(){
 function finishPageFlip(overlay,dir){
   if(!overlay?.isConnected)return;
   const w=overlay.width,h=overlay.height;
-  const snapshot=document.createElement('canvas');
-  snapshot.width=w;snapshot.height=h;
-  snapshot.getContext('2d',{alpha:false}).drawImage(overlay,0,0);
+  const original=document.createElement('canvas');
+  original.width=w;original.height=h;
+  original.getContext('2d',{alpha:false}).drawImage(overlay,0,0);
   const ctx=overlay.getContext('2d',{alpha:true});
   const forward=dir==='next';
-  const reduce=window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-  const duration=reduce?180:840;
+  const prefersReduced=window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  const duration=prefersReduced?170:770;
   const start=performance.now();
-  const edgeAt=(t,y)=>{
-    const v=y/h;
-    const bend=(Math.sin(Math.PI*v)*.085+(v-.5)*.065)*Math.sin(Math.PI*t)*w;
-    return Math.max(0,Math.min(w,(forward?(1-t):t)*w+bend));
-  };
-  function drawFrame(t){
-    const ease=t*t*(3-2*t);
-    const curl=Math.sin(Math.PI*ease);
+  const segments=Math.max(24,Math.ceil(h/35));
+  const step=h/segments;
+  function drawFrame(progress){
+    const t=progress*progress*(3-2*progress);
+    const curl=Math.sin(Math.PI*t);
+    const foldWidth=.23*w*Math.pow(Math.max(0,curl),.72);
+    const direction=forward?1:-1;
+    const at=(y)=>{
+      const naturalBend=(Math.sin(Math.PI*y/h)-.35)*.055*w*curl;
+      const verticalOffset=(y/h-.5)*.022*w*curl;
+      return Math.max(0,Math.min(w,(forward?1-t:t)*w+naturalBend+verticalOffset));
+    };
     ctx.clearRect(0,0,w,h);
-    if(ease>=1)return;
-    const segments=Math.max(20,Math.ceil(h/22)),step=h/segments;
-    ctx.save();
-    ctx.beginPath();
-    if(forward){
-      ctx.moveTo(0,0);ctx.lineTo(edgeAt(ease,0),0);
-      for(let i=1;i<=segments;i++)ctx.lineTo(edgeAt(ease,step*i),Math.min(h,step*i));
-      ctx.lineTo(0,h);
-    }else{
-      ctx.moveTo(w,0);ctx.lineTo(edgeAt(ease,0),0);
-      for(let i=1;i<=segments;i++)ctx.lineTo(edgeAt(ease,step*i),Math.min(h,step*i));
-      ctx.lineTo(w,h);
-    }
+    if(t>=1)return;
+    // The unfolded sheet retains its original dimensions and is clipped by a curved crease.
+    ctx.save();ctx.beginPath();
+    if(forward){ctx.moveTo(0,0);ctx.lineTo(at(0),0);}
+    else{ctx.moveTo(w,0);ctx.lineTo(at(0),0);}
+    for(let i=1;i<=segments;i++)ctx.lineTo(at(i*step),Math.min(h,i*step));
+    ctx.lineTo(forward?0:w,h);
     ctx.closePath();ctx.clip();
-    ctx.drawImage(snapshot,0,0,w,h);
+    ctx.drawImage(original,0,0,w,h);
     ctx.restore();
-    if(curl<.003)return;
-    const side=forward?1:-1;
-    // An irregular, rounded crease suggests a paper cylinder, not a rotating flat rectangle.
-    const foldedW=(.10+.075*curl)*w*curl;
+    if(foldWidth<.6)return;
+    // Draw the curved underside of the paper. The old printed page is faintly visible
+    // through it instead of a solid grey strip.
     ctx.save();ctx.beginPath();
     for(let i=0;i<=segments;i++){
-      const y=Math.min(h,i*step),x=edgeAt(ease,y);
-      if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+      const y=Math.min(h,i*step);
+      if(i===0)ctx.moveTo(at(y),y);else ctx.lineTo(at(y),y);
     }
     for(let i=segments;i>=0;i--){
-      const y=Math.min(h,i*step),x=edgeAt(ease,y);
-      const taper=.4+.6*Math.sin(Math.PI*(y/h));
-      ctx.lineTo(x+side*foldedW*taper,y);
+      const y=Math.min(h,i*step);
+      const taper=.50+.50*Math.sin(Math.PI*y/h);
+      ctx.lineTo(at(y)+direction*foldWidth*taper,y);
     }
-    ctx.closePath();
-    const gradient=ctx.createLinearGradient(
-      forward?w*(1-ease):w*ease,0,
-      (forward?w*(1-ease):w*ease)+side*foldedW,0
-    );
-    gradient.addColorStop(0,'rgba(55,48,38,.43)');
-    gradient.addColorStop(.24,'rgba(190,180,164,.84)');
-    gradient.addColorStop(.57,'rgba(255,254,250,.98)');
-    gradient.addColorStop(1,'rgba(218,212,204,.94)');
-    ctx.fillStyle=gradient;ctx.fill();
-    ctx.strokeStyle='rgba(74,66,54,.34)';
-    ctx.lineWidth=Math.max(.8,w/650);
-    ctx.stroke();
-    ctx.restore();
-    // Soft shadow cast onto the newly revealed page.
-    const shadowWidth=w*.075*curl;
+    ctx.closePath();ctx.clip();
+    ctx.fillStyle='#fffdf8';ctx.fillRect(0,0,w,h);
+    // Reflected text on the reverse side gives the turning paper physical texture.
+    ctx.save();ctx.globalAlpha=.14;
     for(let i=0;i<segments;i++){
-      const y=i*step,edge=edgeAt(ease,y+step/2);
-      const shadow=ctx.createLinearGradient(edge-side*shadowWidth,y,edge+side*shadowWidth,y);
-      shadow.addColorStop(0,'rgba(0,0,0,0)');
-      shadow.addColorStop(.5,'rgba(39,34,27,.19)');
-      shadow.addColorStop(1,'rgba(0,0,0,0)');
-      ctx.fillStyle=shadow;
-      const x=Math.min(edge-shadowWidth,edge+shadowWidth);
-      ctx.fillRect(Math.max(0,x),y,Math.min(2*shadowWidth,w),step+1);
+      const y=i*step,mid=y+step/2;
+      const x=at(mid),width=foldWidth*(.5+.5*Math.sin(Math.PI*mid/h));
+      const sourceW=Math.min(w,Math.max(2,width*1.4));
+      if(forward){
+        ctx.save();ctx.translate(x+width,0);ctx.scale(-1,1);
+        ctx.drawImage(original,w-sourceW,y,sourceW,step+1,0,y,width,step+1);
+        ctx.restore();
+      }else{
+        ctx.save();ctx.translate(x-width,0);ctx.scale(-1,1);
+        ctx.drawImage(original,0,y,sourceW,step+1,0,y,width,step+1);
+        ctx.restore();
+      }
     }
+    ctx.restore();
+    const mid=at(h/2);
+    const light=ctx.createLinearGradient(mid,0,mid+direction*foldWidth,0);
+    light.addColorStop(0,'rgba(68,61,48,.32)');
+    light.addColorStop(.15,'rgba(226,220,207,.36)');
+    light.addColorStop(.44,'rgba(255,255,252,.85)');
+    light.addColorStop(.72,'rgba(247,245,238,.6)');
+    light.addColorStop(1,'rgba(196,187,169,.5)');
+    ctx.fillStyle=light;ctx.fillRect(0,0,w,h);
+    ctx.restore();
+    // Gradual shadow directly beyond the crease, on the newly revealed page.
+    ctx.save();
+    for(let i=0;i<segments;i++){
+      const y=i*step,edge=at(y+step/2),shadowW=w*.065*curl;
+      const left=Math.max(0,edge-shadowW),right=Math.min(w,edge+shadowW);
+      if(right<=left)continue;
+      const shade=ctx.createLinearGradient(left,y,right,y);
+      shade.addColorStop(0,'rgba(25,23,19,0)');
+      shade.addColorStop(.48,'rgba(25,23,19,.13)');
+      shade.addColorStop(1,'rgba(25,23,19,0)');
+      ctx.fillStyle=shade;ctx.fillRect(left,y,right-left,step+1);
+    }
+    ctx.strokeStyle='rgba(100,90,76,.34)';
+    ctx.lineWidth=Math.max(.6,w/1100);
+    ctx.beginPath();
+    for(let i=0;i<=segments;i++){
+      const y=Math.min(h,i*step);
+      if(i===0)ctx.moveTo(at(y),y);else ctx.lineTo(at(y),y);
+    }
+    ctx.stroke();ctx.restore();
   }
-  drawFrame(0);
   function tick(now){
     if(!overlay.isConnected)return;
-    const elapsed=Math.min(1,(now-start)/duration);
-    drawFrame(elapsed);
-    if(elapsed<1)requestAnimationFrame(tick);
+    const t=Math.min(1,(now-start)/duration);
+    drawFrame(t);
+    if(t<1)requestAnimationFrame(tick);
     else overlay.remove();
   }
+  drawFrame(0);
   requestAnimationFrame(tick);
 }
 async function goToPage(number,animate=true){

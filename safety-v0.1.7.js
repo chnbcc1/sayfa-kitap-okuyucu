@@ -7,7 +7,11 @@ export async function bookDigest(source){return sha256Hex(source);}
 export function setupSafeLibrary(api){
   const {dbAll,dbRead,dbPut,dbDelete,dbDeleteIndexed,toast,download,getPDF,showLibrary,uniqueId,state,getActiveBookId}=api;
   const $=id=>document.getElementById(id);
-  const status=(s,ms=11000)=>toast(s,ms);
+  const status=(s,ms=11000)=>{
+    const panel=$('librarySafetyDialog'),message=$('archiveActionStatus');
+    if(panel?.open&&message)message.textContent=s;
+    toast(s,ms);
+  };
   const busy=v=>{
     for(const id of ['backupLibraryBtn','restoreLibraryBtn','verifyLibraryBtn','importBtn','emptyImportBtn'])if($(id))$(id).disabled=v;
   };

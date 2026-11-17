@@ -14,7 +14,7 @@
 <div id="app">
   <header class="topbar">
     <button id="backBtn" class="icon-btn hidden" title="Kitaplığa dön" aria-label="Kitaplığa dön">←</button>
-    <div class="brand"><div class="brand-icon">S</div><div><strong>Sayfa</strong><small>kişisel kitaplığım · v0.1.4</small></div></div>
+    <div class="brand"><div class="brand-icon">S</div><div><strong>Sayfa</strong><small>kişisel kitaplığım · v0.1.5</small></div></div>
     <div class="top-actions">
       <span id="storageNote" class="muted mobile-hide">Kitaplar cihazında saklanır</span>
       <button id="updateBtn" class="icon-btn" title="Güncellemeyi kontrol et" aria-label="Güncellemeyi kontrol et">↻</button>
@@ -83,9 +83,35 @@
   <input id="fileInput" class="hidden" type="file" accept="application/pdf,.pdf" multiple>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 </div>
-<dialog id="importDialog" class="modal"><form method="dialog"><h3>Kitabı nasıl saklayalım?</h3><p class="hint">Sayfa v0.1.4 · Tam ekran okuma ve kaydırma</p><p id="importFilename"></p><label class="radio-choice"><input type="radio" name="importMode" value="original" checked><span><strong>PDF'yi olduğu gibi koru</strong><small>Metin, bağlantılar ve sayfa kalitesi bozulmaz.</small></span></label><label class="radio-choice"><input type="radio" name="importMode" value="balanced"><span><strong>Görsel kitap olarak sıkıştır — dengeli</strong><small>Sayfaları WebP/JPEG görüntülere dönüştürür. Metin seçimi kaybolur.</small></span></label><label class="radio-choice"><input type="radio" name="importMode" value="strong"><span><strong>Maksimum sıkıştırma</strong><small>Daha düşük çözünürlük; küçük yazılar bulanıklaşabilir.</small></span></label><p class="hint">Görüntüye dönüştürme sonucunda dosya küçülmezse orijinal PDF saklanır. Büyük kitaplarda işlem uzun sürebilir.</p><div class="modal-actions"><button value="cancel">Vazgeç</button><button value="ok" class="primary-btn">İçe aktar</button></div></form></dialog>
+<dialog id="bookActionsDialog" class="modal book-action-dialog">
+  <form method="dialog">
+    <h3>Kitap seçenekleri</h3>
+    <p id="bookActionTitle" class="book-action-title"></p>
+    <div class="book-action-list">
+      <button id="renameBookOption" class="book-action-item" type="button"><span class="action-icon">✎</span><span>Adını değiştir</span><span class="action-chevron">›</span></button>
+      <button id="deleteBookOption" class="book-action-item book-action-danger" type="button"><span class="action-icon">🗑</span><span>Kitabı sil</span><span class="action-chevron">›</span></button>
+    </div>
+    <div class="modal-actions"><button value="cancel">Vazgeç</button></div>
+  </form>
+</dialog>
+<dialog id="renameBookDialog" class="modal book-action-dialog">
+  <form method="dialog">
+    <h3>Kitabın adını değiştir</h3>
+    <label class="rename-label" for="renameBookInput">Kitap adı</label>
+    <input id="renameBookInput" type="text" maxlength="180" autocomplete="off" aria-label="Yeni kitap adı">
+    <div class="modal-actions"><button value="cancel">Vazgeç</button><button id="renameBookConfirm" type="button" class="primary-btn">Kaydet</button></div>
+  </form>
+</dialog>
+<dialog id="deleteBookDialog" class="modal book-action-dialog">
+  <form method="dialog">
+    <h3>Kitabı sil</h3>
+    <p><strong id="deleteBookTitle"></strong> kitabını ve bu kitaba ait notları silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.</p>
+    <div class="modal-actions"><button value="cancel">Vazgeç</button><button id="deleteBookConfirm" class="danger-action" type="button">Kitabı sil</button></div>
+  </form>
+</dialog>
+<dialog id="importDialog" class="modal"><form method="dialog"><h3>Kitabı nasıl saklayalım?</h3><p class="hint">Sayfa v0.1.5 · Kitap işlemleri ve sayfa kıvrılma animasyonu</p><p id="importFilename"></p><label class="radio-choice"><input type="radio" name="importMode" value="original" checked><span><strong>PDF'yi olduğu gibi koru</strong><small>Metin, bağlantılar ve sayfa kalitesi bozulmaz.</small></span></label><label class="radio-choice"><input type="radio" name="importMode" value="balanced"><span><strong>Görsel kitap olarak sıkıştır — dengeli</strong><small>Sayfaları WebP/JPEG görüntülere dönüştürür. Metin seçimi kaybolur.</small></span></label><label class="radio-choice"><input type="radio" name="importMode" value="strong"><span><strong>Maksimum sıkıştırma</strong><small>Daha düşük çözünürlük; küçük yazılar bulanıklaşabilir.</small></span></label><p class="hint">Görüntüye dönüştürme sonucunda dosya küçülmezse orijinal PDF saklanır. Büyük kitaplarda işlem uzun sürebilir.</p><div class="modal-actions"><button value="cancel">Vazgeç</button><button value="ok" class="primary-btn">İçe aktar</button></div></form></dialog>
 <dialog id="noteDialog" class="modal"><form method="dialog"><h3>Sayfa notu</h3><textarea id="noteText" rows="6" placeholder="Bu sayfadaki düşünceleriniz…"></textarea><div class="modal-actions"><button id="deleteNoteBtn" type="button" class="danger-btn hidden">Notu sil</button><button value="cancel">Vazgeç</button><button id="saveNoteBtn" type="button" class="primary-btn">Kaydet</button></div></form></dialog>
 <dialog id="helpDialog" class="modal"><form method="dialog"><h3>Sayfa nasıl kullanılır?</h3><p><strong>Kitap:</strong> PDF ekle; kitaplar bu cihazın tarayıcı depolama alanında saklanır. Kitaba tıklayınca kaldığın sayfa açılır.</p><p><strong>Kalem:</strong> Önce bir kalem türü, renk ve kalınlık seç; ardından sayfanın üzerine çiz. “Oku” ile sayfayı normal kaydır.</p><p><strong>Not:</strong> “Not” aracını seçip sayfaya dokun; daha sonra çıkan işarete dokunarak düzenle.</p><p><strong>Silgi:</strong> Bir çizginin üzerine dokun veya üzerinden sürükle. Geri al / ileri al kullanılabilir.</p><p><strong>Sayfalar:</strong> Okuma modunda sola kaydırınca sonraki, sağa kaydırınca önceki sayfaya geçilir. Alttaki sayfa numarasına dokunarak sayfa seçiciyi açın.</p><p class="hint">Sıkıştırılmış görsel kitaplarda metin seçilemez. Depolama alanı veya tarayıcı verileri silinirse kitaplar kaybolabilir.</p><p><strong>Güncellemeler:</strong> Kitaplıktayken sağ üstteki ↻ düğmesi güncel sürümü kontrol eder. Okurken üstteki ✎ kalem araçlarını, ⋯ ise diğer seçenekleri açar. Kitaplar ve notlar cihazda saklanmaya devam eder.</p><div class="modal-actions"><button value="ok" class="primary-btn">Anladım</button></div></form></dialog>
-<script type="module" src="./app-v0.1.4.js"></script>
+<script type="module" src="./app-v0.1.5.js"></script>
 </body>
 </html>

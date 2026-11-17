@@ -1,0 +1,190 @@
+/* Sayfa v0.1.2 — iOS Safari compatibility, versioned asset. */
+/* Sayfa v0.1 — MIT. A browser-first, privacy-preserving personal PDF library. */
+const $ = (id) => document.getElementById(id);
+const PDFJS_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs';
+const PDF_WORKER_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs';
+const PALETTE = ['#343434','#E5B437','#E97777','#63AC91','#6098D9','#9D78D1','#E58A46','#FFFFFF'];
+const DEFAULT_SETTINGS = { tool:'hand', color:'#343434', width:4, animation:true, dark:false };
+let settings = { ...DEFAULT_SETTINGS };
+try { settings = {...settings,...JSON.parse(localStorage.getItem('sayfa-settings') || '{}')}; } catch (_) {}
+const state = { db:null, pdfjs:null, book:null, pdfDoc:null, page:1, marks:{strokes:[],notes:[]}, undo:[], redo:[], drawing:false, pendingStroke:null, editingNote:null, notePosition:null, renderTask:null, renderSerial:0, pageUrl:null, covers:[], busy:false, nextToast:null, resizeTimer:null };
+function saveSettings(){localStorage.setItem('sayfa-settings',JSON.stringify(settings));}
+function toast(text, ms=2800){const el=$('toast');el.textContent=text;el.classList.add('shown');clearTimeout(state.nextToast);state.nextToast=setTimeout(()=>el.classList.remove('shown'),ms);}
+function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function formatSize(n){if(!Number.isFinite(n))return '—';return n>=1048576?(n/1048576).toFixed(1)+' MB':(n/1024).toFixed(0)+' KB';}
+function request(r){return new Promise((resolve,reject)=>{r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});}
+function openDB(){return new Promise((resolve,reject)=>{const r=indexedDB.open('sayfa-kutuphane',1);r.onupgradeneeded=()=>{const db=r.result;if(!db.objectStoreNames.contains('books'))db.createObjectStore('books',{keyPath:'id'});if(!db.objectStoreNames.contains('marks')){const s=db.createObjectStore('marks',{keyPath:'key'});s.createIndex('bookId','bookId');}if(!db.objectStoreNames.contains('pages')){const s=db.createObjectStore('pages',{keyPath:'key'});s.createIndex('bookId','bookId');}};r.onerror=()=>reject(r.error);r.onsuccess=()=>resolve(r.result);});}
+function dbRead(store,key){return request(state.db.transaction(store,'readonly').objectStore(store).get(key));}
+function dbAll(store){return request(state.db.transaction(store,'readonly').objectStore(store).getAll());}
+function dbPut(store,value){return new Promise((resolve,reject)=>{const tx=state.db.transaction(store,'readwrite');tx.objectStore(store).put(value);tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);});}
+function dbDelete(store,key){return new Promise((resolve,reject)=>{const tx=state.db.transaction(store,'readwrite');tx.objectStore(store).delete(key);tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);});}
+function dbDeleteIndexed(store,index,value){return new Promise((resolve,reject)=>{const tx=state.db.transaction(store,'readwrite');const idx=tx.objectStore(store).index(index);const r=idx.openCursor(IDBKeyRange.only(value));r.onsuccess=()=>{const cursor=r.result;if(cursor){cursor.delete();cursor.continue();}};tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);});}
+async function pdfjs(){
+  if(state.pdfjs)return state.pdfjs;
+  try{
+    let mod,worker=PDF_WORKER_URL;
+    try{
+      const response=await fetch('./vendor/pdf.min.mjs',{method:'HEAD'});
+      if(!response.ok)throw new Error('Yerel kütüphane yok');
+      mod=await import('./vendor/pdf.min.mjs');worker='./vendor/pdf.worker.min.mjs';
+    }catch(_){mod=await import(PDFJS_URL);}
+    mod.GlobalWorkerOptions.workerSrc=worker;
+    state.pdfjs=mod;return mod;
+  }catch(e){throw new Error('PDF motoru yüklenemedi. İlk kullanımda internet gerekir veya PDF.js dosyaları vendor/ klasörüne eklenmelidir. ('+(e.message||'bağlantı hatası')+')');}
+}
+// Two free PDF.js engines: the classic build is used first on iPhone/iPad for Safari compatibility.
+let legacyPdfjsLoading=null;
+async function legacyPdfjs(){
+  if(window.pdfjsLib){window.pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';return window.pdfjsLib;}
+  if(!legacyPdfjsLoading)legacyPdfjsLoading=new Promise((resolve,reject)=>{
+    const script=document.createElement('script');
+    script.src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    script.async=true;
+    script.onload=()=>{
+      if(!window.pdfjsLib){reject(new Error('PDF.js uyumluluk motoru başlatılamadı.'));return;}
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      resolve(window.pdfjsLib);
+    };
+    script.onerror=()=>reject(new Error('PDF.js uyumluluk motoru indirilemedi.'));
+    document.head.appendChild(script);
+  }).catch(e=>{legacyPdfjsLoading=null;throw e;});
+  return legacyPdfjsLoading;
+}
+async function getPDF(source){
+  let bytes;
+  if(source instanceof Blob)bytes=new Uint8Array(await source.arrayBuffer());
+  else if(source instanceof ArrayBuffer)bytes=new Uint8Array(source.slice(0));
+  else if(ArrayBuffer.isView(source))bytes=new Uint8Array(source.buffer.slice(source.byteOffset,source.byteOffset+source.byteLength));
+  else throw new Error('PDF verisi okunamadı.');
+  const appleMobile=/iPad|iPhone|iPod/i.test(navigator.userAgent);
+  const engines=appleMobile?[legacyPdfjs,pdfjs]:[pdfjs,legacyPdfjs];
+  const errors=[];
+  for(const engine of engines){
+    try{
+      const lib=await engine();
+      return await lib.getDocument({data:bytes.slice()}).promise;
+    }catch(e){console.warn('PDF motoru',engine.name,'başarısız:',e);errors.push(engine.name+': '+(e?.message||e));}
+  }
+  throw new Error('PDF açılamadı. '+errors.join(' | '));
+}
+function canvasBlob(canvas,mime,quality){return new Promise(resolve=>canvas.toBlob(resolve,mime,quality));}
+async function imageBlob(canvas,quality){const webp=await canvasBlob(canvas,'image/webp',quality);if(webp && webp.type==='image/webp')return webp;return await canvasBlob(canvas,'image/jpeg',quality);}
+async function renderPageToCanvas(pdfDoc,num,canvas,width=1300){const p=await pdfDoc.getPage(num);const base=p.getViewport({scale:1});const viewport=p.getViewport({scale:Math.min(width/base.width,2.8)});canvas.width=Math.round(viewport.width);canvas.height=Math.round(viewport.height);const context=canvas.getContext('2d',{alpha:false});context.fillStyle='#fff';context.fillRect(0,0,canvas.width,canvas.height);await p.render({canvasContext:context,viewport,background:'#ffffff'}).promise;return canvas;}
+async function coverFor(doc){const canvas=document.createElement('canvas');await renderPageToCanvas(doc,1,360);const thumb=document.createElement('canvas');thumb.width=176;thumb.height=Math.max(170,Math.round(176*canvas.height/canvas.width));thumb.getContext('2d').drawImage(canvas,0,0,thumb.width,thumb.height);return imageBlob(thumb,.65);}
+function percent(a,b){return b?Math.round(a*100/b):0;}
+function uniqueId(){return typeof crypto.randomUUID==='function'?crypto.randomUUID():String(Date.now())+'-'+Math.random().toString(16).slice(2);}
+function setBusy(v){state.busy=v;$('importBtn').disabled=v;$('emptyImportBtn').disabled=v;}
+async function importFile(file){if(!file||!file.name.toLowerCase().endsWith('.pdf')){toast('Lütfen bir PDF dosyası seçin.');return;}
+  $('importFilename').textContent=`${file.name} — ${formatSize(file.size)}`;
+  $('importDialog').querySelector('input[value="original"]').checked=true;
+  const dialog=$('importDialog');dialog.showModal();
+  const result=await new Promise(resolve=>dialog.addEventListener('close',()=>resolve(dialog.returnValue),{once:true}));
+  if(result!=='ok')return;
+  const mode=dialog.querySelector('input[name="importMode"]:checked').value;
+  setBusy(true);let doc=null;let id=uniqueId();let compressed=false;let stage='PDF hazırlığı';
+  try{
+    toast('PDF açılıyor…',20000);
+    const pdfBytes=await file.arrayBuffer();
+    const safeBlob=new Blob([pdfBytes],{type:'application/pdf'});
+    stage='PDF sayfaları okunuyor';
+    doc=await getPDF(safeBlob);
+    if(!doc.numPages)throw new Error('PDF sayfaları bulunamadı.');
+    stage='Kapak önizlemesi hazırlanıyor';
+    let cover=null;
+    try{cover=await coverFor(doc);}catch(coverError){console.warn('Kapak önizlemesi atlandı:',coverError);}
+    const book={id,title:file.name.replace(/\.pdf$/i,''),fileName:file.name,createdAt:Date.now(),updatedAt:Date.now(),type:'pdf',pageCount:doc.numPages,currentPage:1,bookmarks:[],cover,rawSize:file.size,storedSize:file.size,blob:safeBlob};
+    if(mode!=='original'){
+      stage='Sayfalar sıkıştırılıyor';
+      const width=mode==='strong'?1000:1450;
+      const quality=mode==='strong'?.65:.80;
+      let bytes=0;
+      try{
+        for(let i=1;i<=doc.numPages;i++){
+          const canvas=document.createElement('canvas');await renderPageToCanvas(doc,i,canvas,width);
+          const image=await imageBlob(canvas,quality);if(!image)throw new Error('Sayfa sıkıştırılamadı.');
+          bytes+=image.size;
+          await dbPut('pages',{key:`${id}:${i}`,bookId:id,page:i,blob:image,width:canvas.width,height:canvas.height});
+          if(i===1||i%3===0||i===doc.numPages){toast(`Sıkıştırılıyor: ${i}/${doc.numPages} sayfa`,20000);await sleep(0);}
+        }
+        if(bytes < file.size*.97){book.type='images';book.blob=null;book.storedSize=bytes;compressed=true;}
+        else await dbDeleteIndexed('pages','bookId',id);
+      }catch(e){await dbDeleteIndexed('pages','bookId',id);throw e;}
+    }
+    stage='Cihazın kitaplığına kaydediliyor';
+    try{await dbPut('books',book);}catch(saveError){
+      // iOS Safari bazen Blob klonlamayı reddeder; kayıpsız ArrayBuffer yedeği.
+      if(book.type!=='pdf')throw saveError;
+      console.warn('Blob kaydı başarısız; ArrayBuffer deneniyor:',saveError);
+      book.blob=pdfBytes;
+      await dbPut('books',book);
+    }
+    stage='Kitaplık güncelleniyor';
+    toast(compressed?`Kitap eklendi: %${percent(file.size-book.storedSize,file.size)} daha küçük.`:mode==='original'?'Kitap kitaplığına eklendi.':'Sıkıştırma küçültmediği için özgün PDF korundu.',5000);
+    await showLibrary();
+  }catch(e){await dbDeleteIndexed('pages','bookId',id).catch(()=>{});console.error('Kitap ekleme hatası ['+stage+']:',e);toast('v0.1.2 · Kitap eklenemedi ('+stage+'): '+(e.message||e),14000);}
+  finally{if(doc)await doc.destroy().catch(()=>{});setBusy(false);}
+}
+async function showLibrary(){if(state.book){await closeReader();}const all=await dbAll('books');all.sort((a,b)=>b.updatedAt-a.updatedAt);$('bookCount').textContent=all.length?`${all.length} kitap`:'Henüz kitabın yok';const search=$('searchInput').value.trim().toLocaleLowerCase('tr');const visible=all.filter(b=>b.title.toLocaleLowerCase('tr').includes(search));state.covers.forEach(URL.revokeObjectURL);state.covers=[];const grid=$('bookGrid');grid.replaceChildren();$('libraryEmpty').classList.toggle('hidden',all.length!==0);for(const book of visible){const card=document.createElement('article');card.className='book-card';card.tabIndex=0;card.setAttribute('role','button');card.setAttribute('aria-label',book.title+' kitabını aç');const cover=document.createElement('div');cover.className='book-cover';if(book.cover){const url=URL.createObjectURL(book.cover);state.covers.push(url);const img=document.createElement('img');img.src=url;img.alt='Kitap kapağı';cover.append(img);}else cover.innerHTML=`<div class="cover-placeholder"><span>📖</span><b>${escapeHtml(book.title)}</b></div>`;const menu=document.createElement('button');menu.className='book-menu';menu.textContent='⋯';menu.title='Kitap seçenekleri';menu.addEventListener('click',e=>{e.stopPropagation();bookOptions(book);});cover.append(menu);const title=document.createElement('h3');title.textContent=book.title;const meta=document.createElement('div');meta.className='book-meta';meta.innerHTML=`<span>${book.currentPage} / ${book.pageCount} sayfa</span><span>${formatSize(book.storedSize)}</span>`;const track=document.createElement('div');track.className='progress-track';const fill=document.createElement('div');fill.className='progress-fill';fill.style.width=percent(book.currentPage,book.pageCount)+'%';track.append(fill);card.append(cover,title,meta,track);card.addEventListener('click',()=>openReader(book.id).catch(e=>toast('Kitap açılamadı: '+e.message,6000)));card.addEventListener('keydown',e=>{if(e.key==='Enter')card.click();});grid.append(card);}
+  $('libraryScreen').classList.remove('hidden');$('readerScreen').classList.add('hidden');$('backBtn').classList.add('hidden');}
+async function bookOptions(book){const choice=prompt('Kitap işlemi:\n1 = Adını değiştir\n2 = Sayfa notlarını yedekle (.json)\n3 = Kitabı sil\n\nSeçiminiz:');if(choice==='1'){const name=prompt('Yeni kitap adı:',book.title)?.trim();if(name){book.title=name;book.updatedAt=Date.now();await dbPut('books',book);await showLibrary();}}else if(choice==='2'){const marks=(await dbAll('marks')).filter(m=>m.bookId===book.id);const payload={format:'Sayfa Notes Backup v1',bookTitle:book.title,fileName:book.fileName,pageCount:book.pageCount,bookmarks:book.bookmarks,currentPage:book.currentPage,marks};const out=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});download(out,book.title.replace(/[^\wçğıöşüÇĞİÖŞÜ-]+/gi,'_')+'-notlar.json');toast('Not yedeği indirildi.');}else if(choice==='3'){if(confirm('“'+book.title+'” kitabını ve uygulamadaki tüm notlarını silmek istiyor musunuz? Bu işlem geri alınamaz.')){await dbDeleteIndexed('marks','bookId',book.id);await dbDeleteIndexed('pages','bookId',book.id);await dbDelete('books',book.id);await showLibrary();toast('Kitap silindi.');}}}
+function download(blob,name){const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),10000);}
+async function openReader(id){const book=await dbRead('books',id);if(!book)throw new Error('Kitap bulunamadı.');if(state.book)await closeReader();state.book=book;state.page=book.currentPage||1;try{if(book.type==='pdf')state.pdfDoc=await getPDF(book.blob);}catch(e){state.book=null;throw e;}
+  $('libraryScreen').classList.add('hidden');$('readerScreen').classList.remove('hidden');$('backBtn').classList.remove('hidden');$('readerBookTitle').textContent=book.title;$('pageSlider').max=String(book.pageCount);$('pageAnimationBtn').classList.toggle('active',settings.animation);$('saveStatus').textContent='Kitap açık';selectTool(settings.tool);await goToPage(state.page,false);}
+async function closeReader(){if(!state.book)return;state.renderSerial++;if(state.renderTask){state.renderTask.cancel();await state.renderTask.promise.catch(()=>{});state.renderTask=null;}if(state.pdfDoc){await state.pdfDoc.destroy().catch(()=>{});state.pdfDoc=null;}if(state.pageUrl){URL.revokeObjectURL(state.pageUrl);state.pageUrl=null;}state.book=null;state.marks={strokes:[],notes:[]};$('pageSheet').classList.remove('turn-next','turn-prev');}
+function updatePager(){if(!state.book)return;$('pageCount').textContent=`${state.page} / ${state.book.pageCount}`;$('pageSlider').value=String(state.page);for(const id of ['prevPageBtn','previousPageFloat'])$(id).disabled=state.page<=1;for(const id of ['nextPageBtn','nextPageFloat'])$(id).disabled=state.page>=state.book.pageCount;const saved=state.book.bookmarks||[];$('bookmarkBtn').classList.toggle('active',saved.includes(state.page));$('bookmarkBtn').firstChild.textContent=saved.includes(state.page)?'★ ':'☆ ';}
+async function loadMarks(bookId,page,serial){
+  const record=await dbRead('marks',`${bookId}:${page}`);
+  if(!state.book||state.book.id!==bookId||state.page!==page||serial!==state.renderSerial)return false;
+  state.marks=record?{strokes:record.strokes||[],notes:record.notes||[]}:{strokes:[],notes:[]};
+  state.undo=[];state.redo=[];renderAnnotations();renderNotePins();return true;
+}
+async function saveMarks(){
+  if(!state.book)return;
+  const bookId=state.book.id,page=state.page;
+  const marks=JSON.parse(JSON.stringify(state.marks));
+  $('saveStatus').textContent='Kaydediliyor…';
+  await dbPut('marks',{key:`${bookId}:${page}`,bookId,page,strokes:marks.strokes,notes:marks.notes});
+  if(state.book&&state.book.id===bookId&&state.page===page)$('saveStatus').textContent='Notlar kaydedildi';
+}
+function snapshot(){state.undo.push(JSON.stringify(state.marks));if(state.undo.length>50)state.undo.shift();state.redo=[];}
+async function undo(){if(!state.undo.length||state.drawing)return;state.redo.push(JSON.stringify(state.marks));state.marks=JSON.parse(state.undo.pop());renderAnnotations();renderNotePins();await saveMarks();}
+async function redo(){if(!state.redo.length||state.drawing)return;state.undo.push(JSON.stringify(state.marks));state.marks=JSON.parse(state.redo.pop());renderAnnotations();renderNotePins();await saveMarks();}
+async function goToPage(number,animate=true){if(!state.book)return;number=Math.max(1,Math.min(state.book.pageCount,Number(number)||1));const previous=state.page;state.page=number;state.book.currentPage=number;state.book.updatedAt=Date.now();const serial=++state.renderSerial;const bookId=state.book.id;updatePager();await dbPut('books',state.book);if(serial!==state.renderSerial)return;$('saveStatus').textContent='Kaldığın yer kaydedildi';if(!await loadMarks(bookId,number,serial))return;await paintPage(serial);if(animate&&settings.animation&&previous!==number){const sheet=$('pageSheet');sheet.classList.remove('turn-next','turn-prev');void sheet.offsetWidth;sheet.classList.add(number>previous?'turn-next':'turn-prev');} }
+async function paintPage(serial){if(!state.book||serial!==state.renderSerial)return;let ownTask=null;const sheet=$('pageSheet');const canvas=$('pdfCanvas');const image=$('imagePage');const spinner=$('pageSpinner');spinner.textContent='Sayfa hazırlanıyor…';spinner.classList.remove('hidden');sheet.classList.remove('turn-next','turn-prev');try{
+    if(state.renderTask){const oldTask=state.renderTask;state.renderTask=null;oldTask.cancel();await oldTask.promise.catch(()=>{});}
+    if(serial!==state.renderSerial)return;
+    if(state.pageUrl){URL.revokeObjectURL(state.pageUrl);state.pageUrl=null;}
+    if(state.book.type==='pdf'){
+      canvas.classList.remove('hidden');image.classList.add('hidden');image.removeAttribute('src');
+      const p=await state.pdfDoc.getPage(state.page);if(serial!==state.renderSerial)return;
+      const base=p.getViewport({scale:1});const width=Math.min(sheet.parentElement.clientWidth-(window.innerWidth<=700?16:130),780);const scale=Math.min(Math.max(220,width)/base.width,3.5);const viewport=p.getViewport({scale});const dpr=Math.min(window.devicePixelRatio||1,2);canvas.width=Math.round(viewport.width*dpr);canvas.height=Math.round(viewport.height*dpr);canvas.style.width=Math.round(viewport.width)+'px';canvas.style.height=Math.round(viewport.height)+'px';sheet.style.width=Math.round(viewport.width)+'px';sheet.style.minHeight='0';sheet.style.aspectRatio='auto';const ctx=canvas.getContext('2d',{alpha:false});ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);
+      ownTask=p.render({canvasContext:ctx,viewport,transform:[dpr,0,0,dpr,0,0],background:'#ffffff'});state.renderTask=ownTask;await ownTask.promise;
+    } else {
+      canvas.classList.add('hidden');image.classList.remove('hidden');const record=await dbRead('pages',`${state.book.id}:${state.page}`);if(!record)throw new Error('Sıkıştırılmış sayfa bulunamadı.');const url=URL.createObjectURL(record.blob);state.pageUrl=url;const width=Math.min(sheet.parentElement.clientWidth-(window.innerWidth<=700?16:130),780);sheet.style.width=Math.min(width,record.width)+'px';sheet.style.aspectRatio=`${record.width} / ${record.height}`;sheet.style.minHeight='0';image.src=url;await new Promise((resolve,reject)=>{if(image.complete&&image.naturalWidth)return resolve();image.onload=resolve;image.onerror=()=>reject(new Error('Görsel açılamadı.'));});
+    }
+    if(serial!==state.renderSerial)return;spinner.classList.add('hidden');setupDrawingCanvas();renderAnnotations();renderNotePins();$('viewerArea').scrollTo({top:0,behavior:'auto'});
+  }catch(e){if(serial!==state.renderSerial)return;console.error(e);spinner.textContent='Sayfa açılamadı: '+(e.message||'bilinmeyen hata');toast('Sayfa açılamadı: '+e.message,6000);}finally{if(state.renderTask===ownTask)state.renderTask=null;}
+}
+function setupDrawingCanvas(){const sheet=$('pageSheet');const canvas=$('annotationCanvas');const w=sheet.clientWidth,h=sheet.clientHeight;if(w<2||h<2)return;const dpr=Math.min(window.devicePixelRatio||1,2);canvas.width=Math.round(w*dpr);canvas.height=Math.round(h*dpr);canvas.style.width=w+'px';canvas.style.height=h+'px';canvas.getContext('2d').setTransform(dpr,0,0,dpr,0,0);}
+function pointFrom(e){const rect=$('annotationCanvas').getBoundingClientRect();return {x:Math.max(0,Math.min(1,(e.clientX-rect.left)/rect.width)),y:Math.max(0,Math.min(1,(e.clientY-rect.top)/rect.height))};}
+function drawStroke(ctx,stroke,rect){const points=stroke.points||[];if(!points.length)return;const scale=rect.width/550;let width=Math.max(.8,(stroke.width||4)*scale);ctx.save();ctx.lineCap='round';ctx.lineJoin='round';ctx.strokeStyle=stroke.color||'#343434';ctx.fillStyle=stroke.color||'#343434';ctx.globalAlpha=1;ctx.globalCompositeOperation='source-over';if(stroke.tool==='highlighter'){width*=3.2;ctx.globalAlpha=.34;ctx.globalCompositeOperation='multiply';}else if(stroke.tool==='pencil'){ctx.globalAlpha=.65;width*=.72;}else if(stroke.tool==='marker'){width*=1.25;}else if(stroke.tool==='underline'||stroke.tool==='strike'){width*=.88;}
+  ctx.lineWidth=width;ctx.beginPath();ctx.moveTo(points[0].x*rect.width,points[0].y*rect.height);if(points.length===1){ctx.lineTo(points[0].x*rect.width+.01,points[0].y*rect.height+.01);}else for(let i=1;i<points.length;i++)ctx.lineTo(points[i].x*rect.width,points[i].y*rect.height);ctx.stroke();ctx.restore();}
+function renderAnnotations(){const canvas=$('annotationCanvas');if(!canvas.width)return;const ctx=canvas.getContext('2d');const dpr=Math.min(window.devicePixelRatio||1,2);ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,canvas.width,canvas.height);ctx.restore();const rect={width:canvas.clientWidth,height:canvas.clientHeight};for(const s of state.marks.strokes)drawStroke(ctx,s,rect);if(state.pendingStroke)drawStroke(ctx,state.pendingStroke,rect);}
+function renderNotePins(){const container=$('notePins');container.replaceChildren();for(const n of state.marks.notes){const pin=document.createElement('button');pin.className='note-pin';pin.textContent='✎';pin.title=n.text;pin.style.left=(n.x*100)+'%';pin.style.top=(n.y*100)+'%';pin.addEventListener('click',e=>{e.stopPropagation();editNote(n);});container.append(pin);}}
+function distToSegment(p,a,b){const dx=b.x-a.x,dy=b.y-a.y;const t=Math.max(0,Math.min(1,((p.x-a.x)*dx+(p.y-a.y)*dy)/(dx*dx+dy*dy||1)));return Math.hypot((p.x-a.x-t*dx)*1.0,(p.y-a.y-t*dy)*1.0);}
+function eraseAt(point){const canvas=$('annotationCanvas');const radius=Math.max(.015,settings.width*.002);const before=state.marks.strokes.length;state.marks.strokes=state.marks.strokes.filter(s=>{for(let i=0;i<s.points.length;i++){const a=s.points[i],b=s.points[i+1]||a;const p={x:point.x,y:point.y};const corrected={x: p.x*(canvas.clientWidth/canvas.clientHeight),y:p.y};const aa={x:a.x*(canvas.clientWidth/canvas.clientHeight),y:a.y};const bb={x:b.x*(canvas.clientWidth/canvas.clientHeight),y:b.y};if(distToSegment(corrected,aa,bb)<radius)return false;}return true;});if(before!==state.marks.strokes.length)renderAnnotations();}
+function onPointerDown(e){if(!state.book||state.busy||settings.tool==='hand')return;if(e.button!==undefined&&e.button!==0)return;const p=pointFrom(e);if(settings.tool==='note'){state.notePosition=p;state.editingNote=null;$('noteText').value='';$('deleteNoteBtn').classList.add('hidden');$('noteDialog').showModal();return;}
+  e.preventDefault();state.drawing=true;try{e.target.setPointerCapture(e.pointerId);}catch(_){}snapshot();if(settings.tool==='eraser'){eraseAt(p);}else{state.pendingStroke={id:uniqueId(),tool:settings.tool,color:settings.color,width:settings.width,points:[p]};renderAnnotations();}}
+function onPointerMove(e){if(!state.drawing)return;e.preventDefault();const p=pointFrom(e);if(settings.tool==='eraser'){eraseAt(p);return;}if(!state.pendingStroke)return;if(settings.tool==='underline'||settings.tool==='strike'){state.pendingStroke.points=[state.pendingStroke.points[0],{x:p.x,y:state.pendingStroke.points[0].y}];}else{const last=state.pendingStroke.points.at(-1);if(Math.hypot(last.x-p.x,last.y-p.y)>.001)state.pendingStroke.points.push(p);}renderAnnotations();}
+async function onPointerUp(e){if(!state.drawing)return;e.preventDefault();state.drawing=false;try{e.target.releasePointerCapture(e.pointerId);}catch(_){}if(state.pendingStroke){state.marks.strokes.push(state.pendingStroke);state.pendingStroke=null;}renderAnnotations();try{await saveMarks();}catch(err){toast('Çizim kaydedilemedi: '+err.message,5500);}}
+function editNote(note){state.editingNote=note;state.notePosition={x:note.x,y:note.y};$('noteText').value=note.text;$('deleteNoteBtn').classList.remove('hidden');$('noteDialog').showModal();}
+async function saveNote(){const text=$('noteText').value.trim();if(!text){toast('Boş not kaydedilmedi.');return;}snapshot();if(state.editingNote){state.editingNote.text=text;}else{state.marks.notes.push({id:uniqueId(),text,...state.notePosition,createdAt:Date.now()});}$('noteDialog').close();renderNotePins();await saveMarks();}
+async function deleteNote(){if(!state.editingNote)return;snapshot();state.marks.notes=state.marks.notes.filter(n=>n.id!==state.editingNote.id);$('noteDialog').close();renderNotePins();await saveMarks();}
+function selectTool(tool){settings.tool=tool;saveSettings();document.querySelectorAll('.pen-tool').forEach(b=>b.classList.toggle('selected',b.dataset.tool===tool));$('pageSheet').classList.toggle('drawing',tool!=='hand');$('annotationCanvas').style.pointerEvents=tool==='hand'?'none':'auto';$('annotationCanvas').style.touchAction=tool==='hand'?'auto':'none';updatePreview();}
+function updatePreview(){document.querySelectorAll('.swatch').forEach(s=>s.classList.toggle('selected',s.dataset.color===settings.color));$('widthSlider').value=String(settings.width);$('widthOutput').textContent=settings.width+' / 12';const path=$('previewPath');path.setAttribute('stroke',settings.tool==='eraser'?'#777777':settings.color);path.setAttribute('stroke-width',String(settings.width*(settings.tool==='highlighter'?1.6:1)));path.setAttribute('opacity',String(settings.tool==='highlighter'?.40:settings.tool==='pencil'?.65:1));}
+function setupControls(){const colors=$('colorPalette');PALETTE.forEach(c=>{const b=document.createElement('button');b.className='swatch';b.style.backgroundColor=c;b.dataset.color=c;b.title='Kalem rengi '+c;b.setAttribute('aria-label',b.title);b.addEventListener('click',()=>{settings.color=c;saveSettings();updatePreview();});colors.append(b);});updatePreview();document.querySelectorAll('.pen-tool').forEach(b=>b.addEventListener('click',()=>selectTool(b.dataset.tool)));$('widthSlider').addEventListener('input',e=>{settings.width=Number(e.target.value);saveSettings();updatePreview();});$('undoBtn').addEventListener('click',()=>undo().catch(e=>toast(e.message)));$('redoBtn').addEventListener('click',()=>redo().catch(e=>toast(e.message)));const canvas=$('annotationCanvas');canvas.addEventListener('pointerdown',onPointerDown);canvas.addEventListener('pointermove',onPointerMove);canvas.addEventListener('pointerup',onPointerUp);canvas.addEventListener('pointercancel',onPointerUp);
+  $('importBtn').addEventListener('click',()=>$('fileInput').click());$('emptyImportBtn').addEventListener('click',()=>$('fileInput').click());$('fileInput').addEventListener('change',async e=>{const files=Array.from(e.target.files||[]);e.target.value='';for(const f of files)await importFile(f);});$('backBtn').addEventListener('click',()=>showLibrary().catch(e=>toast(e.message)));$('searchInput').addEventListener('input',()=>showLibrary().catch(e=>toast(e.message)));$('themeBtn').addEventListener('click',()=>{settings.dark=!settings.dark;saveSettings();applyTheme();});$('helpBtn').addEventListener('click',()=>$('helpDialog').showModal());$('penToolbarBtn').addEventListener('click',()=>{$('penPanel').classList.toggle('hidden');$('penToolbarBtn').classList.toggle('selected',!$('penPanel').classList.contains('hidden'));});$('pageAnimationBtn').addEventListener('click',()=>{settings.animation=!settings.animation;saveSettings();$('pageAnimationBtn').classList.toggle('active',settings.animation);toast(settings.animation?'Sayfa animasyonu açıldı.':'Sayfa animasyonu kapatıldı.');});$('bookmarkBtn').addEventListener('click',async()=>{if(!state.book)return;const saved=state.book.bookmarks||[];state.book.bookmarks=saved.includes(state.page)?saved.filter(p=>p!==state.page):[...saved,state.page].sort((a,b)=>a-b);await dbPut('books',state.book);updatePager();toast(saved.includes(state.page)?'Yer imi kaldırıldı.':'Yer imi kaydedildi.');});$('notesListBtn').addEventListener('click',()=>{const notes=state.marks.notes;const msg=notes.length?notes.map((n,i)=>`${i+1}. ${n.text}`).join('\n\n'):'Bu sayfada metin notu bulunmuyor. “Not” aracını seçip sayfaya dokunabilirsiniz.';alert(msg);});$('saveNoteBtn').addEventListener('click',()=>saveNote().catch(e=>toast(e.message)));$('deleteNoteBtn').addEventListener('click',()=>deleteNote().catch(e=>toast(e.message)));for(const id of ['prevPageBtn','previousPageFloat'])$(id).addEventListener('click',()=>goToPage(state.page-1).catch(e=>toast(e.message)));for(const id of ['nextPageBtn','nextPageFloat'])$(id).addEventListener('click',()=>goToPage(state.page+1).catch(e=>toast(e.message)));$('pageSlider').addEventListener('change',e=>goToPage(Number(e.target.value)).catch(err=>toast(err.message)));window.addEventListener('keydown',e=>{if(!state.book||document.querySelector('dialog[open]'))return;if(e.target.matches('input,textarea'))return;if(e.ctrlKey&&e.key.toLowerCase()==='z'){e.preventDefault();(e.shiftKey?redo():undo()).catch(err=>toast(err.message));}else if(e.key==='ArrowRight')goToPage(state.page+1).catch(err=>toast(err.message));else if(e.key==='ArrowLeft')goToPage(state.page-1).catch(err=>toast(err.message));});window.addEventListener('resize',()=>{if(!state.book)return;clearTimeout(state.resizeTimer);state.resizeTimer=setTimeout(()=>paintPage(++state.renderSerial),240);});}
+function applyTheme(){document.body.classList.toggle('dark',settings.dark);$('themeBtn').textContent=settings.dark?'☀':'☾';}
+async function init(){applyTheme();setupControls();try{state.db=await openDB();await showLibrary();if(navigator.storage?.persist){navigator.storage.persist().catch(()=>{});}if('serviceWorker' in navigator&&location.protocol!=='file:'){navigator.serviceWorker.register('./sw.js').catch(e=>console.warn('SW registration:',e));}}catch(e){console.error(e);toast('Uygulama veritabanı başlatılamadı: '+e.message,10000);}}
+init();

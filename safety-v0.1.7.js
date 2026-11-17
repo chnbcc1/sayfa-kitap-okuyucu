@@ -182,7 +182,7 @@ export function setupSafeLibrary(api){
         }catch(e){
           await dbDeleteIndexed('marks','bookId',id).catch(()=>{});
           await dbDeleteIndexed('pages','bookId',id).catch(()=>{});
-          if(!old)await dbDelete('books',id).catch(()=>{});
+          await dbDelete('books',id).catch(()=>{});
           throw e;
         }
       }

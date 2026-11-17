@@ -1,5 +1,5 @@
 {
-  "version": "0.1.8",
+  "version": "0.1.9",
   "released": "2026-11-18",
-  "summary": "PDF içe aktarılırken ilk sayfadan kitap kapağı oluşturulur, kaydedilir ve gerekirse kendiliğinden yeniden denenir."
+  "summary": "Kitaplığımı koru seçenekleri Kitaplığım başlığındaki kaydet simgesine taşındı; yedekleme ve geri yükleme korundu."
 }

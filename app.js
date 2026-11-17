@@ -32,7 +32,15 @@ async function pdfjs(){
     state.pdfjs=mod;return mod;
   }catch(e){throw new Error('PDF motoru yüklenemedi. İlk kullanımda internet gerekir veya PDF.js dosyaları vendor/ klasörüne eklenmelidir. ('+(e.message||'bağlantı hatası')+')');}
 }
-async function getPDF(blob){const lib=await pdfjs();return lib.getDocument({data:new Uint8Array(await blob.arrayBuffer())}).promise;}
+async function getPDF(source){
+  const lib=await pdfjs();
+  let bytes;
+  if(source instanceof Blob)bytes=new Uint8Array(await source.arrayBuffer());
+  else if(source instanceof ArrayBuffer)bytes=new Uint8Array(source.slice(0));
+  else if(ArrayBuffer.isView(source))bytes=new Uint8Array(source.buffer.slice(source.byteOffset,source.byteOffset+source.byteLength));
+  else throw new Error('PDF verisi okunamadı.');
+  return lib.getDocument({data:bytes}).promise;
+}
 function canvasBlob(canvas,mime,quality){return new Promise(resolve=>canvas.toBlob(resolve,mime,quality));}
 async function imageBlob(canvas,quality){const webp=await canvasBlob(canvas,'image/webp',quality);if(webp && webp.type==='image/webp')return webp;return await canvasBlob(canvas,'image/jpeg',quality);}
 async function renderPageToCanvas(pdfDoc,num,canvas,width=1300){const p=await pdfDoc.getPage(num);const base=p.getViewport({scale:1});const viewport=p.getViewport({scale:Math.min(width/base.width,2.8)});canvas.width=Math.round(viewport.width);canvas.height=Math.round(viewport.height);const context=canvas.getContext('2d',{alpha:false});context.fillStyle='#fff';context.fillRect(0,0,canvas.width,canvas.height);await p.render({canvasContext:context,viewport,background:'#ffffff'}).promise;return canvas;}
@@ -47,13 +55,20 @@ async function importFile(file){if(!file||!file.name.toLowerCase().endsWith('.pd
   const result=await new Promise(resolve=>dialog.addEventListener('close',()=>resolve(dialog.returnValue),{once:true}));
   if(result!=='ok')return;
   const mode=dialog.querySelector('input[name="importMode"]:checked').value;
-  setBusy(true);let doc=null;let id=uniqueId();let compressed=false;
+  setBusy(true);let doc=null;let id=uniqueId();let compressed=false;let stage='PDF hazırlığı';
   try{
-    toast('PDF açılıyor…',20000);doc=await getPDF(file);
+    toast('PDF açılıyor…',20000);
+    const pdfBytes=await file.arrayBuffer();
+    const safeBlob=new Blob([pdfBytes],{type:'application/pdf'});
+    stage='PDF sayfaları okunuyor';
+    doc=await getPDF(safeBlob);
     if(!doc.numPages)throw new Error('PDF sayfaları bulunamadı.');
-    const cover=await coverFor(doc);
-    const book={id,title:file.name.replace(/\.pdf$/i,''),fileName:file.name,createdAt:Date.now(),updatedAt:Date.now(),type:'pdf',pageCount:doc.numPages,currentPage:1,bookmarks:[],cover,rawSize:file.size,storedSize:file.size,blob:file};
+    stage='Kapak önizlemesi hazırlanıyor';
+    let cover=null;
+    try{cover=await coverFor(doc);}catch(coverError){console.warn('Kapak önizlemesi atlandı:',coverError);}
+    const book={id,title:file.name.replace(/\.pdf$/i,''),fileName:file.name,createdAt:Date.now(),updatedAt:Date.now(),type:'pdf',pageCount:doc.numPages,currentPage:1,bookmarks:[],cover,rawSize:file.size,storedSize:file.size,blob:safeBlob};
     if(mode!=='original'){
+      stage='Sayfalar sıkıştırılıyor';
       const width=mode==='strong'?1000:1450;
       const quality=mode==='strong'?.65:.80;
       let bytes=0;
@@ -69,10 +84,18 @@ async function importFile(file){if(!file||!file.name.toLowerCase().endsWith('.pd
         else await dbDeleteIndexed('pages','bookId',id);
       }catch(e){await dbDeleteIndexed('pages','bookId',id);throw e;}
     }
-    await dbPut('books',book);
+    stage='Cihazın kitaplığına kaydediliyor';
+    try{await dbPut('books',book);}catch(saveError){
+      // iOS Safari bazen Blob klonlamayı reddeder; kayıpsız ArrayBuffer yedeği.
+      if(book.type!=='pdf')throw saveError;
+      console.warn('Blob kaydı başarısız; ArrayBuffer deneniyor:',saveError);
+      book.blob=pdfBytes;
+      await dbPut('books',book);
+    }
+    stage='Kitaplık güncelleniyor';
     toast(compressed?`Kitap eklendi: %${percent(file.size-book.storedSize,file.size)} daha küçük.`:mode==='original'?'Kitap kitaplığına eklendi.':'Sıkıştırma küçültmediği için özgün PDF korundu.',5000);
     await showLibrary();
-  }catch(e){await dbDeleteIndexed('pages','bookId',id).catch(()=>{});console.error(e);toast('Kitap eklenemedi: '+(e.message||e),7500);}
+  }catch(e){await dbDeleteIndexed('pages','bookId',id).catch(()=>{});console.error('Kitap ekleme hatası ['+stage+']:',e);toast('Kitap eklenemedi ('+stage+'): '+(e.message||e),9000);}
   finally{if(doc)await doc.destroy().catch(()=>{});setBusy(false);}
 }
 async function showLibrary(){if(state.book){await closeReader();}const all=await dbAll('books');all.sort((a,b)=>b.updatedAt-a.updatedAt);$('bookCount').textContent=all.length?`${all.length} kitap`:'Henüz kitabın yok';const search=$('searchInput').value.trim().toLocaleLowerCase('tr');const visible=all.filter(b=>b.title.toLocaleLowerCase('tr').includes(search));state.covers.forEach(URL.revokeObjectURL);state.covers=[];const grid=$('bookGrid');grid.replaceChildren();$('libraryEmpty').classList.toggle('hidden',all.length!==0);for(const book of visible){const card=document.createElement('article');card.className='book-card';card.tabIndex=0;card.setAttribute('role','button');card.setAttribute('aria-label',book.title+' kitabını aç');const cover=document.createElement('div');cover.className='book-cover';if(book.cover){const url=URL.createObjectURL(book.cover);state.covers.push(url);const img=document.createElement('img');img.src=url;img.alt='Kitap kapağı';cover.append(img);}else cover.innerHTML=`<div class="cover-placeholder"><span>📖</span><b>${escapeHtml(book.title)}</b></div>`;const menu=document.createElement('button');menu.className='book-menu';menu.textContent='⋯';menu.title='Kitap seçenekleri';menu.addEventListener('click',e=>{e.stopPropagation();bookOptions(book);});cover.append(menu);const title=document.createElement('h3');title.textContent=book.title;const meta=document.createElement('div');meta.className='book-meta';meta.innerHTML=`<span>${book.currentPage} / ${book.pageCount} sayfa</span><span>${formatSize(book.storedSize)}</span>`;const track=document.createElement('div');track.className='progress-track';const fill=document.createElement('div');fill.className='progress-fill';fill.style.width=percent(book.currentPage,book.pageCount)+'%';track.append(fill);card.append(cover,title,meta,track);card.addEventListener('click',()=>openReader(book.id).catch(e=>toast('Kitap açılamadı: '+e.message,6000)));card.addEventListener('keydown',e=>{if(e.key==='Enter')card.click();});grid.append(card);}

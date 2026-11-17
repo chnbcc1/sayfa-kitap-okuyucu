@@ -111,8 +111,19 @@ export function setupSafeLibrary(api){
         for(const p of b.pages||[])if(await sha256Hex(checked.get(p.path))!==p.sha256)throw new Error('Arşiv sayfa doğrulaması başarısız.');
         if(b.originalPath&&await sha256Hex(checked.get(b.originalPath))!==b.originalSha256)throw new Error('Orijinal PDF arşiv doğrulaması başarısız.');
       }
-      download(zip,'Sayfa-Yedek-'+new Date().toISOString().slice(0,10)+'.zip');
-      status(list.length+' kitaplık ZIP oluşturuldu ve içerik doğrulandı. Dosyalar/İndirilenler alanında yedeği bulun; farklı bir cihazda da saklayın.',18000);
+      const link=$('backupDownloadLink');
+      if(link){
+        if(link.dataset.oldUrl)URL.revokeObjectURL(link.dataset.oldUrl);
+        const href=URL.createObjectURL(zip);
+        link.dataset.oldUrl=href;
+        link.href=href;
+        link.download='Sayfa-Yedek-'+new Date().toISOString().slice(0,10)+'.zip';
+        link.classList.remove('hidden');
+        status(list.length+' kitaplık ZIP doğrulandı. Şimdi “Yedeği Dosyalar’a indir” düğmesine dokunun ve dosyayı farklı bir yerde de saklayın.',18000);
+      }else{
+        download(zip,'Sayfa-Yedek-'+new Date().toISOString().slice(0,10)+'.zip');
+        status('ZIP hazır. İndirilenler klasöründe bulunduğunu kontrol edin.',12000);
+      }
     }catch(e){console.error('Sayfa backup:',e);status('Yedek alınamadı: '+e.message,16000);}
     finally{state.busy=false;busy(false);}
   }

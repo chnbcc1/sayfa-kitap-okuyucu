@@ -10,7 +10,7 @@ PDF dosyalarınızı tarayıcınızın cihaz içi veritabanında saklayan, okudu
 2. Bilgisayarda o klasörde terminal açın ve `python -m http.server 8000` komutunu çalıştırın. (Python 3 gerekir.)
 3. `http://localhost:8000` adresini açın.
 4. PDF motoru Mozilla PDF.js (Apache-2.0) kullanır. Varsayılan durumda ilk kullanımda internet gerekir. **Tamamen yerel PDF motoru için** internete bağlı bir bilgisayarda bir kere `python get-pdfjs.py` çalıştırın; `vendor/` klasörünü diğer uygulama dosyalarıyla birlikte barındırın.
-5. Kalıcı kullanımda dosyaları ücretsiz **GitHub Pages** gibi HTTPS statik barındırmaya koyabilir, iPhone Safari'de **Paylaş > Ana Ekrana Ekle** seçeneğiyle uygulamayı açabilirsiniz. GitHub Pages'e yükleme bu ZIP'in içinde **yapılmış değildir**.
+5. Kalıcı kullanımda dosyaları ücretsiz **GitHub Pages** gibi HTTPS statik barındırmaya koyabilir, iPhone Safari'de **Paylaş > Ana Ekrana Ekle** seçeneğiyle uygulamayı açabilirsiniz. Canlı sürüm: https://chnbcc1.github.io/sayfa-kitap-okuyucu/ (GitHub Pages).
 
 **Not:** `index.html` dosyasına doğrudan çift tıklamak yerine HTTP/HTTPS üzerinden çalıştırın. iPhone'da başka bir bilgisayarın `localhost` adresi çalışmaz; iPhone için HTTPS barındırma gerekir.
 
@@ -34,7 +34,7 @@ PDF dosyalarınızı tarayıcınızın cihaz içi veritabanında saklayan, okudu
 - Metin el yazısı algılama, PDF'ye çizimleri gömülü dışa aktarma, EPUB, bulut senkronizasyonu, OCR, tam metin arama ve otomatik metin tabanlı PDF optimizasyonu bu sürümde yoktur.
 - Tarayıcının depolama alanı silinir veya cihaz alanı kısıtlanırsa veriler kaybolabilir. **Orijinal PDF'lerinizi saklayın.** JSON not yedeği vardır, fakat JSON'dan içeri geri yükleme henüz yoktur.
 - Büyük PDF'leri sayfa görüntülerine dönüştürme uzun sürebilir ve mobil cihazın bellek sınırına takılabilir. PDF'yi olduğu gibi saklama seçeneği daha güvenlidir.
-- Uygulama GitHub'da yayınlanmış, App Store'a yüklenmiş veya telefona kurulmuş değildir.
+- Uygulama GitHub Pages üzerinden dağıtılmıştır; App Store'a yüklenmemiştir ve gerçek cihazlarda uçtan uca testler henüz tamamlanmamıştır.
 
 ## Neden PWA?
 

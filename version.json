@@ -1,5 +1,5 @@
 {
-  "version": "0.1.7",
+  "version": "0.1.8",
   "released": "2026-11-18",
-  "summary": "Kitaplık ZIP yedekleme, yedek doğrulama, geri yükleme, SHA-256 dosya kontrolü ve yumuşak kıvrımlı sayfa geçişi."
+  "summary": "PDF içe aktarılırken ilk sayfadan kitap kapağı oluşturulur, kaydedilir ve gerekirse kendiliğinden yeniden denenir."
 }

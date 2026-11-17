@@ -94,3 +94,11 @@ body.reading-mode .page-footer.page-footer-open{display:flex}
 
 /* v0.1.10: hide every unopened native dialog even if a later selector sets display. */
 dialog:not([open]){display:none!important}
+
+/* Sayfa v0.1.10 — subtle, balanced library protection control. */
+.library-heading-title{align-items:center;gap:10px}
+.library-safety-icon{width:36px;height:36px;min-width:36px;border-radius:50%;background:rgba(83,113,98,.10);border:1px solid rgba(83,113,98,.20);color:var(--accent);box-shadow:none;transition:background-color .18s,border-color .18s,transform .18s}
+.library-safety-icon:hover,.library-safety-icon:focus-visible{background:rgba(83,113,98,.19);border-color:var(--accent)}
+.library-safety-icon:active{transform:scale(.96)}
+.library-safety-icon svg{width:19px;height:19px}
+@media(max-width:700px){.library-heading-title{gap:9px}.library-safety-icon{width:35px;height:35px;min-width:35px;border-radius:50%}.library-safety-icon svg{width:19px;height:19px}}

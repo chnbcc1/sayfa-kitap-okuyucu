@@ -1,8 +1,20 @@
 # Sayfa — Ücretsiz Kişisel Kitap Okuma Uygulaması
 
-**Sürüm:** v0.1 (ilk geliştirme sürümü, 17 Kasım 2026)
+**Sürüm:** v0.1.7 (18 Kasım 2026, geliştirme ve test sürümü)
 
 PDF dosyalarınızı tarayıcınızın cihaz içi veritabanında saklayan, okuduğunuz sayfayı hatırlayan ve PDF üzerine kalemle çizim/not almanıza olanak veren **açık kaynaklı ve ücretsiz** PWA prototipi.
+
+> **ÖNEMLİ: Orijinal PDF'lerinizi uygulamaya yükledikten sonra silmeyin.** Kitaplık IndexedDB'de, cihazın web uygulaması alanındadır; uygulamayı kaldırmak, tarayıcı verilerini temizlemek veya depolama sorunları verilerin kaybına yol açabilir. Sıfır hata veya kalıcı saklama garantisi yoktur. En az iki bağımsız dış yedek tutun ve geri yüklemeyi test edin.
+
+## Kitaplığı güvenli yedekleme
+
+1. Uygulamada **Kitaplığı yedekle** seçin.
+2. ZIP hazırlandığında **Yedeği Dosyalar'a indir** bağlantısına dokunun. Dosyanın gerçekten kaydedildiğini kontrol edin.
+3. Kaydettiğiniz ZIP'i **Yedeği kontrol et** ile seçerek yeniden doğrulayın.
+4. **Yedekten geri yükle** ile işlemi deneyin. Var olan kitaplar korunur; aynı kitabın ikinci bir kopyası oluşturulabilir.
+5. ZIP'in ikinci bir kopyasını iCloud Drive veya bilgisayarınıza koyun. Orijinal PDF'yi ayrıca saklamak en güvenli yoldur.
+
+Sıkıştırılmış kitapların orijinal PDF'si de korunur. Bu yüzden sıkıştırma modu toplam depolama alanını azaltmak yerine artırabilir. Bu tercih, geri alınamaz veri kaybını önlemek içindir.
 
 ## Kurulum / Çalıştırma
 

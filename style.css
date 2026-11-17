@@ -48,3 +48,17 @@ body.reading-mode .page-footer.page-footer-open{display:flex}
 @keyframes pageFlipBackward{0%{transform:perspective(1000px) rotateY(0deg);opacity:1}55%{opacity:.94;filter:brightness(.82)}100%{transform:perspective(1000px) rotateY(95deg);opacity:0}}
 @media(max-width:700px){body.reading-mode .pen-panel{padding:10px}body.reading-mode .pen-options{gap:12px}body.reading-mode .page-footer>div{width:58vw}body.reading-mode .reader-toolbar .tool-mini{padding:9px 11px}}
 @media(prefers-reduced-motion:reduce){.page-turn-overlay.flip-next,.page-turn-overlay.flip-prev{animation-duration:.15s}}
+
+/* Sayfa v0.1.5 — touch-friendly book actions and curved page canvas. */
+.book-action-dialog{width:min(92vw,440px)}
+.book-action-title{margin:5px 0 17px;line-height:1.45;font-size:14px;overflow-wrap:anywhere;max-height:80px;overflow:auto}
+.book-action-list{display:grid;gap:10px}
+.book-action-item{min-height:58px;display:flex;align-items:center;gap:13px;width:100%;text-align:left;border:1px solid var(--border);border-radius:13px;padding:12px 16px;background:var(--bg);color:var(--ink);font-weight:650;font-size:15px}
+.book-action-item:active{background:var(--soft)}
+.book-action-item .action-icon{font-size:21px;width:25px;text-align:center}
+.book-action-item .action-chevron{margin-left:auto;color:var(--muted);font-size:22px}
+.book-action-danger{color:#b34343}
+.rename-label{display:block;color:var(--muted);font-size:12px;margin-bottom:8px}
+#renameBookInput{border:1px solid var(--border);width:100%;border-radius:11px;background:var(--bg);color:var(--ink);padding:12px 14px;font-size:16px}
+.danger-action{padding:10px 18px;border:1px solid #b44545;background:#ae3d3d;color:#fff;border-radius:11px;font-weight:700}
+.page-turn-overlay{animation:none!important;transform:none!important;filter:none!important;backface-visibility:visible!important;will-change:contents;box-shadow:none!important}

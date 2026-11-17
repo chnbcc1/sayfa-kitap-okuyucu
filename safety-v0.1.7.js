@@ -44,6 +44,11 @@ export function setupSafeLibrary(api){
           const data=entries.get(p.path);
           if(!data||await sha256Hex(data)!==p.sha256)throw new Error(b.title+' sayfa yedeği hasarlı.');
         }
+        if(b.originalPath){
+          const original=entries.get(b.originalPath);
+          if(!original||await sha256Hex(original)!==b.originalSha256)throw new Error(b.title+' orijinal PDF yedeği hasarlı.');
+          if(await validatePDF(original,b.title)!==b.pageCount)throw new Error(b.title+' orijinal PDF sayfaları doğrulanamadı.');
+        }
       }else throw new Error('Yedekte desteklenmeyen kitap biçimi.');
     }
     return {manifest,entries};
@@ -76,6 +81,17 @@ export function setupSafeLibrary(api){
           const p=pages.filter(x=>x.bookId===book.id);
           if(p.length!==book.pageCount)throw new Error(book.title+' görsel sayfaları eksik.');
           meta.pages=[];
+          if(book.originalBlob){
+            const original=await sourceBytes(book.originalBlob);
+            const hash=await sha256Hex(original);
+            if(book.sha256&&book.sha256!==hash)throw new Error(book.title+' orijinal PDF bütünlüğü bozuk.');
+            if(await validatePDF(original,book.title)!==book.pageCount)throw new Error(book.title+' orijinal PDF geçersiz.');
+            meta.originalPath='books/'+book.id+'-original.pdf';
+            meta.originalSha256=hash;
+            entries.push({name:meta.originalPath,data:original});
+          }else{
+            throw new Error(book.title+' için orijinal PDF saklanmamış. Önce orijinal dosyayı tekrar ekleyin.');
+          }
           for(const page of p.sort((a,b)=>a.page-b.page)){
             const data=await sourceBytes(page.blob);
             const path='pages/'+book.id+'/'+page.page+'.bin';
@@ -93,6 +109,7 @@ export function setupSafeLibrary(api){
       for(const b of list){
         if(b.type==='pdf'&&await sha256Hex(checked.get(b.path))!==b.sha256)throw new Error('Arşiv PDF doğrulaması başarısız.');
         for(const p of b.pages||[])if(await sha256Hex(checked.get(p.path))!==p.sha256)throw new Error('Arşiv sayfa doğrulaması başarısız.');
+        if(b.originalPath&&await sha256Hex(checked.get(b.originalPath))!==b.originalSha256)throw new Error('Orijinal PDF arşiv doğrulaması başarısız.');
       }
       download(zip,'Sayfa-Yedek-'+new Date().toISOString().slice(0,10)+'.zip');
       status(list.length+' kitaplık ZIP oluşturuldu ve içerik doğrulandı. Dosyalar/İndirilenler alanında yedeği bulun; farklı bir cihazda da saklayın.',18000);
@@ -131,6 +148,11 @@ export function setupSafeLibrary(api){
             fresh.sha256=b.sha256;fresh.verifiedAt=Date.now();fresh.storedSize=data.length;
           }else{
             fresh.blob=null;
+            if(b.originalPath){
+              const original=entries.get(b.originalPath);
+              fresh.originalBlob=original.buffer.slice(original.byteOffset,original.byteOffset+original.byteLength);
+              fresh.sha256=b.originalSha256;fresh.verifiedAt=Date.now();
+            }
             for(const p of b.pages){
               const data=entries.get(p.path);
               await dbPut('pages',{key:id+':'+p.page,bookId:id,page:p.page,blob:new Blob([data],{type:p.mime||'image/jpeg'}),width:p.width,height:p.height});
@@ -163,9 +185,9 @@ export function setupSafeLibrary(api){
     const book=await dbRead('books',id);
     $('bookActionsDialog')?.close();
     if(!book)return;
-    if(book.type!=='pdf'){status('Görsel kitaplar için Kitaplığı yedekle seçeneğini kullanın.',8000);return;}
+    if(book.type!=='pdf'&&!book.originalBlob){status('Bu eski görsel kitap kaydında orijinal PDF bulunmuyor. Eski PDF kopyasını saklayın.',9500);return;}
     try{
-      const data=await sourceBytes(book.blob);
+      const data=await sourceBytes(book.type==='pdf'?book.blob:book.originalBlob);
       const hash=await sha256Hex(data);
       if(book.sha256&&book.sha256!==hash)throw new Error('PDF bütünlüğü doğrulanamadı.');
       if(await validatePDF(data,book.title)!==book.pageCount)throw new Error('Sayfa sayısı farklı.');

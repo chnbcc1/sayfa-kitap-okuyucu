@@ -1,5 +1,5 @@
 {
-  "version": "0.1.3",
+  "version": "0.1.4",
   "released": "2026-11-18",
-  "summary": "iPhone ana ekranı için otomatik güncelleme ve manuel güncelleme kontrolü"
+  "summary": "Kitap kapak önizlemeleri, tam ekran okuma, açılır kalem menüsü, parmakla sayfa geçişi ve yeni sayfa animasyonu"
 }

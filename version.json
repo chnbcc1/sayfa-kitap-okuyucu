@@ -1,5 +1,5 @@
 {
-  "version": "0.1.4",
+  "version": "0.1.5",
   "released": "2026-11-18",
-  "summary": "Kitap kapak önizlemeleri, tam ekran okuma, açılır kalem menüsü, parmakla sayfa geçişi ve yeni sayfa animasyonu"
+  "summary": "Dokunarak kitap adını değiştirme ve silme; kıvrımlı sayfa çevirme; eksik/bozuk PDF uyarısı"
 }

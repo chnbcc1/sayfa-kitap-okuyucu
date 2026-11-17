@@ -1,5 +1,5 @@
 {
-  "version": "0.1.9",
+  "version": "0.1.10",
   "released": "2026-11-18",
-  "summary": "Kitaplığımı koru seçenekleri Kitaplığım başlığındaki kaydet simgesine taşındı; yedekleme ve geri yükleme korundu."
+  "summary": "Kapalı yedekleme penceresinin uygulama açılışında anlık görünmesi engellendi."
 }

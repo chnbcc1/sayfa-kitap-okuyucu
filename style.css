@@ -62,3 +62,15 @@ body.reading-mode .page-footer.page-footer-open{display:flex}
 #renameBookInput{border:1px solid var(--border);width:100%;border-radius:11px;background:var(--bg);color:var(--ink);padding:12px 14px;font-size:16px}
 .danger-action{padding:10px 18px;border:1px solid #b44545;background:#ae3d3d;color:#fff;border-radius:11px;font-weight:700}
 .page-turn-overlay{animation:none!important;transform:none!important;filter:none!important;backface-visibility:visible!important;will-change:contents;box-shadow:none!important}
+
+/* v0.1.7: book safety and explicit verified backup download. */
+.archive-security{border:1px solid var(--border);border-radius:17px;background:var(--paper);padding:18px 20px;margin:19px 0 8px;box-shadow:0 4px 20px #00000006}
+.archive-security h2{font-size:18px;font-weight:750;margin:0 0 8px}
+.archive-security p{font-size:13px;line-height:1.55;color:var(--muted);margin:0 0 13px}
+.archive-security p strong{color:var(--ink)}
+.archive-actions{display:flex;gap:9px;flex-wrap:wrap}
+.archive-actions button,.archive-actions a{border:1px solid var(--accent);border-radius:11px;padding:10px 14px;font-size:13px;font-weight:650;background:transparent;color:var(--accent);text-decoration:none;text-align:center}
+.archive-actions .archive-main{background:var(--accent);color:#fff}
+.archive-actions .archive-download{background:#334e41;color:#fff}
+.archive-actions button:disabled{opacity:.45}
+@media(max-width:700px){.archive-security{margin:17px 0 8px;padding:15px}.archive-security h2{font-size:16px}.archive-actions{display:grid;grid-template-columns:1fr 1fr}.archive-actions .archive-main{grid-column:1/-1}.archive-actions button,.archive-actions a{min-height:43px}}

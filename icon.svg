@@ -1,1 +1,25 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="110" fill="#526c60"/><path d="M120 143c50-20 99-20 136 8 38-28 88-28 136-8v229c-53-23-99-21-136 8-41-28-88-32-136-8V143z" fill="#fffdf8"/><path d="M256 151v229M151 191c34-9 58-5 82 9M151 237c30-9 57-5 82 9M279 200c25-14 51-18 82-9M279 246c24-15 50-18 82-9" fill="none" stroke="#a3bbae" stroke-width="11" stroke-linecap="round"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Sahife">
+<defs>
+  <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+    <stop stop-color="#8fa878"/><stop offset=".47" stop-color="#577448"/><stop offset="1" stop-color="#3e603a"/>
+  </linearGradient>
+  <linearGradient id="paper" x1="0" y1="0" x2="1" y2="1">
+    <stop stop-color="#fff6da"/><stop offset=".6" stop-color="#f7e7bc"/><stop offset="1" stop-color="#e4cda0"/>
+  </linearGradient>
+  <linearGradient id="fold" x1=".08" y1="0" x2="1" y2="1">
+    <stop stop-color="#fff9e6"/><stop offset=".45" stop-color="#e0bc7f"/><stop offset="1" stop-color="#b48c56"/>
+  </linearGradient>
+  <filter id="shadow" x="-20%" y="-20%" width="150%" height="160%">
+    <feGaussianBlur stdDeviation="12"/>
+  </filter>
+</defs>
+<rect width="512" height="512" rx="108" fill="url(#bg)"/>
+<ellipse cx="260" cy="382" rx="166" ry="34" fill="#243c27" opacity=".3" filter="url(#shadow)"/>
+<path d="M128 347 Q193 326 256 367 Q318 326 386 349 L386 399 Q319 382 256 412 Q194 381 128 399 Z" fill="#dec69b"/>
+<path d="M124 358 Q190 332 256 386 Q323 332 390 358 L388 384 Q316 366 256 413 Q196 366 126 384 Z" fill="#fff3d4"/>
+<path d="M126 166 Q182 131 256 164 Q332 133 384 174 L384 356 Q320 338 256 390 Q188 337 126 356 Z" fill="url(#paper)"/>
+<path d="M284 150 Q347 153 384 211 Q349 195 318 206 Q319 166 284 150 Z" fill="url(#fold)"/>
+<path d="M318 206 Q344 181 384 211" fill="none" stroke="#ae8c58" opacity=".5" stroke-width="3"/>
+<path d="M126 355 Q189 337 256 388 Q321 335 384 355" fill="none" stroke="#ccb184" opacity=".65" stroke-width="3"/>
+<text x="256" y="333" font-family="Georgia, 'Times New Roman', serif" font-size="232" text-anchor="middle" fill="#48693e">S</text>
+</svg>

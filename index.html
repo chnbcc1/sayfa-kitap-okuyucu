@@ -4,10 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#f5f1e9">
-  <meta name="description" content="Sayfa: Çevrimdışı kişisel kitaplık, PDF okuma ve kalemle not alma.">
-  <title>Sayfa — Kişisel Kitaplığım</title>
+  <meta name="description" content="Sahife: Çevrimdışı kişisel kitaplık, PDF okuma ve kalemle not alma.">
+  <title>Sahife — Kişisel Kitaplığım</title>
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="icon" href="./icon.svg" type="image/svg+xml">
+  <link rel="icon" href="./sahife-icon-96.jpg" type="image/jpeg" sizes="96x96">
+  <link rel="apple-touch-icon" sizes="96x96" href="./sahife-icon-96.jpg">
+  <meta name="apple-mobile-web-app-title" content="Sahife">
+  <meta name="application-name" content="Sahife">
   <!-- Critical visibility rule: prevents closed dialogs flashing before external CSS loads on iOS. -->
   <style>
     dialog:not([open]) { display: none !important; }
@@ -37,7 +40,7 @@
 <div id="app">
   <header class="topbar">
     <button id="backBtn" class="icon-btn hidden" title="Kitaplığa dön" aria-label="Kitaplığa dön">←</button>
-    <div class="brand"><div class="brand-icon">S</div><div><strong>Sayfa</strong><small>kişisel kitaplığım · v0.1.17</small></div></div>
+    <div class="brand"><img class="brand-icon" src="./sahife-icon-96.jpg" width="44" height="44" alt=""><div><strong>Sahife</strong><small>kişisel kitaplığım · v0.1.18</small></div></div>
     <div class="top-actions">
       <span id="storageNote" class="muted mobile-hide">Kitaplar cihazında saklanır</span>
       <button id="updateBtn" class="icon-btn" title="Güncellemeyi kontrol et" aria-label="Güncellemeyi kontrol et">↻</button>
@@ -161,9 +164,9 @@
     <div class="modal-actions"><button value="cancel">Vazgeç</button><button id="deleteBookConfirm" class="danger-action" type="button">Kitabı sil</button></div>
   </form>
 </dialog>
-<dialog id="importDialog" class="modal"><form method="dialog"><h3>Kitabı nasıl saklayalım?</h3><p class="hint">Sayfa v0.1.17 · Gerçek kâğıt katlama</p><p id="importFilename"></p><label class="radio-choice"><input type="radio" name="importMode" value="original" checked><span><strong>PDF'yi olduğu gibi koru</strong><small>Metin, bağlantılar ve sayfa kalitesi bozulmaz.</small></span></label><label class="radio-choice"><input type="radio" name="importMode" value="balanced"><span><strong>Görsel kitap olarak sıkıştır — dengeli</strong><small>Sayfaları WebP/JPEG görüntülere dönüştürür. Metin seçimi kaybolur.</small></span></label><label class="radio-choice"><input type="radio" name="importMode" value="strong"><span><strong>Maksimum sıkıştırma</strong><small>Daha düşük çözünürlük; küçük yazılar bulanıklaşabilir.</small></span></label><p class="hint">Görüntüye dönüştürme sonucunda dosya küçülmezse orijinal PDF saklanır. Büyük kitaplarda işlem uzun sürebilir.</p><div class="modal-actions"><button value="cancel">Vazgeç</button><button value="ok" class="primary-btn">İçe aktar</button></div></form></dialog>
+<dialog id="importDialog" class="modal"><form method="dialog"><h3>Kitabı nasıl saklayalım?</h3><p class="hint">Sahife v0.1.18 · Yeni ad ve uygulama logosu</p><p id="importFilename"></p><label class="radio-choice"><input type="radio" name="importMode" value="original" checked><span><strong>PDF'yi olduğu gibi koru</strong><small>Metin, bağlantılar ve sayfa kalitesi bozulmaz.</small></span></label><label class="radio-choice"><input type="radio" name="importMode" value="balanced"><span><strong>Görsel kitap olarak sıkıştır — dengeli</strong><small>Sayfaları WebP/JPEG görüntülere dönüştürür. Metin seçimi kaybolur.</small></span></label><label class="radio-choice"><input type="radio" name="importMode" value="strong"><span><strong>Maksimum sıkıştırma</strong><small>Daha düşük çözünürlük; küçük yazılar bulanıklaşabilir.</small></span></label><p class="hint">Görüntüye dönüştürme sonucunda dosya küçülmezse orijinal PDF saklanır. Büyük kitaplarda işlem uzun sürebilir.</p><div class="modal-actions"><button value="cancel">Vazgeç</button><button value="ok" class="primary-btn">İçe aktar</button></div></form></dialog>
 <dialog id="noteDialog" class="modal"><form method="dialog"><h3>Sayfa notu</h3><textarea id="noteText" rows="6" placeholder="Bu sayfadaki düşünceleriniz…"></textarea><div class="modal-actions"><button id="deleteNoteBtn" type="button" class="danger-btn hidden">Notu sil</button><button value="cancel">Vazgeç</button><button id="saveNoteBtn" type="button" class="primary-btn">Kaydet</button></div></form></dialog>
-<dialog id="helpDialog" class="modal"><form method="dialog"><h3>Sayfa nasıl kullanılır?</h3><p><strong>Kitap:</strong> PDF ekle; kitaplar bu cihazın tarayıcı depolama alanında saklanır. Kitaba tıklayınca kaldığın sayfa açılır.</p><p><strong>Kalem:</strong> Önce bir kalem türü, renk ve kalınlık seç; ardından sayfanın üzerine çiz. “Oku” ile sayfayı normal kaydır.</p><p><strong>Not:</strong> “Not” aracını seçip sayfaya dokun; daha sonra çıkan işarete dokunarak düzenle.</p><p><strong>Silgi:</strong> Bir çizginin üzerine dokun veya üzerinden sürükle. Geri al / ileri al kullanılabilir.</p><p><strong>Sayfalar:</strong> Oku modunda sayfayı parmağınla sağdan sola veya soldan sağa kıvırabilirsin. Parmağını ortada durdurduğunda kıvrım da orada kalır; yeterince ilerleyip bıraktığında yeni sayfa açılır, geri çekersen eski sayfa geri gelir. Animasyonu kapatırsan normal kaydırmayla sayfa anında değişir. Alt sayfa numarasından doğrudan sayfa seçebilirsin.</p><p class="hint">Sıkıştırılmış görsel kitaplarda metin seçilemez. Depolama alanı veya tarayıcı verileri silinirse kitaplar kaybolabilir.</p><p><strong>Güncellemeler:</strong> Kitaplıktayken sağ üstteki ↻ düğmesi güncel sürümü kontrol eder. Okurken üstteki ✎ kalem araçlarını, ⋯ ise diğer seçenekleri açar. Kitaplar ve notlar cihazda saklanmaya devam eder.</p><div class="modal-actions"><button value="ok" class="primary-btn">Anladım</button></div></form></dialog>
-<script type="module" src="./app-v0.1.17.js"></script>
+<dialog id="helpDialog" class="modal"><form method="dialog"><h3>Sahife nasıl kullanılır?</h3><p><strong>Kitap:</strong> PDF ekle; kitaplar bu cihazın tarayıcı depolama alanında saklanır. Kitaba tıklayınca kaldığın sayfa açılır.</p><p><strong>Kalem:</strong> Önce bir kalem türü, renk ve kalınlık seç; ardından sayfanın üzerine çiz. “Oku” ile sayfayı normal kaydır.</p><p><strong>Not:</strong> “Not” aracını seçip sayfaya dokun; daha sonra çıkan işarete dokunarak düzenle.</p><p><strong>Silgi:</strong> Bir çizginin üzerine dokun veya üzerinden sürükle. Geri al / ileri al kullanılabilir.</p><p><strong>Sayfalar:</strong> Oku modunda sayfayı parmağınla sağdan sola veya soldan sağa kıvırabilirsin. Parmağını ortada durdurduğunda kıvrım da orada kalır; yeterince ilerleyip bıraktığında yeni sayfa açılır, geri çekersen eski sayfa geri gelir. Animasyonu kapatırsan normal kaydırmayla sayfa anında değişir. Alt sayfa numarasından doğrudan sayfa seçebilirsin.</p><p class="hint">Sıkıştırılmış görsel kitaplarda metin seçilemez. Depolama alanı veya tarayıcı verileri silinirse kitaplar kaybolabilir.</p><p><strong>Güncellemeler:</strong> Kitaplıktayken sağ üstteki ↻ düğmesi güncel sürümü kontrol eder. Okurken üstteki ✎ kalem araçlarını, ⋯ ise diğer seçenekleri açar. Kitaplar ve notlar cihazda saklanmaya devam eder.</p><div class="modal-actions"><button value="ok" class="primary-btn">Anladım</button></div></form></dialog>
+<script type="module" src="./app-v0.1.18.js"></script>
 </body>
 </html>

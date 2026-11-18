@@ -588,7 +588,7 @@ function finishPageFlip(overlay,dir){
         ctx.translate(x+f,0);ctx.scale(-1,1);
         ctx.drawImage(original,w-srcW,y,srcW,rowH+1,0,y,f,rowH+1);
       }else{
-        ctx.translate(x-f,0);ctx.scale(-1,1);
+        ctx.translate(x,0);ctx.scale(-1,1);
         ctx.drawImage(original,0,y,srcW,rowH+1,0,y,f,rowH+1);
       }
       ctx.restore();

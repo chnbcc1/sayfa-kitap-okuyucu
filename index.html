@@ -9,10 +9,31 @@
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" href="./icon.svg" type="image/svg+xml">
   <!-- Critical visibility rule: prevents closed dialogs flashing before external CSS loads on iOS. -->
-  <style>dialog:not([open]) { display: none !important; }</style>
+  <style>
+    dialog:not([open]) { display: none !important; }
+    /* iOS 27: a fixed top-edge surface can stop the native PWA wash-out layer.
+       Keep this inline so it is present before the first paint. */
+    #iosTopEdgeSurface { display: none; }
+    @media (display-mode: standalone) {
+      #iosTopEdgeSurface {
+        display: block;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 12px;
+        z-index: 5;
+        pointer-events: none;
+        background-color: #f8f7f2;
+        -webkit-background-clip: text;
+        background-clip: text;
+      }
+    }
+  </style>
   <link rel="stylesheet" href="./style.css">
 </head>
 <body>
+<div id="iosTopEdgeSurface" aria-hidden="true"></div>
 <div id="app">
   <header class="topbar">
     <button id="backBtn" class="icon-btn hidden" title="Kitaplığa dön" aria-label="Kitaplığa dön">←</button>
@@ -140,7 +161,7 @@
     <div class="modal-actions"><button value="cancel">Vazgeç</button><button id="deleteBookConfirm" class="danger-action" type="button">Kitabı sil</button></div>
   </form>
 </dialog>
-<dialog id="importDialog" class="modal"><form method="dialog"><h3>Kitabı nasıl saklayalım?</h3><p class="hint">Sayfa v0.1.12 · Üst araçlar ve kitaplık araması düzenlendi</p><p id="importFilename"></p><label class="radio-choice"><input type="radio" name="importMode" value="original" checked><span><strong>PDF'yi olduğu gibi koru</strong><small>Metin, bağlantılar ve sayfa kalitesi bozulmaz.</small></span></label><label class="radio-choice"><input type="radio" name="importMode" value="balanced"><span><strong>Görsel kitap olarak sıkıştır — dengeli</strong><small>Sayfaları WebP/JPEG görüntülere dönüştürür. Metin seçimi kaybolur.</small></span></label><label class="radio-choice"><input type="radio" name="importMode" value="strong"><span><strong>Maksimum sıkıştırma</strong><small>Daha düşük çözünürlük; küçük yazılar bulanıklaşabilir.</small></span></label><p class="hint">Görüntüye dönüştürme sonucunda dosya küçülmezse orijinal PDF saklanır. Büyük kitaplarda işlem uzun sürebilir.</p><div class="modal-actions"><button value="cancel">Vazgeç</button><button value="ok" class="primary-btn">İçe aktar</button></div></form></dialog>
+<dialog id="importDialog" class="modal"><form method="dialog"><h3>Kitabı nasıl saklayalım?</h3><p class="hint">Sayfa v0.1.12 · iOS üst bulanıklık koruması, yeni araç düzeni</p><p id="importFilename"></p><label class="radio-choice"><input type="radio" name="importMode" value="original" checked><span><strong>PDF'yi olduğu gibi koru</strong><small>Metin, bağlantılar ve sayfa kalitesi bozulmaz.</small></span></label><label class="radio-choice"><input type="radio" name="importMode" value="balanced"><span><strong>Görsel kitap olarak sıkıştır — dengeli</strong><small>Sayfaları WebP/JPEG görüntülere dönüştürür. Metin seçimi kaybolur.</small></span></label><label class="radio-choice"><input type="radio" name="importMode" value="strong"><span><strong>Maksimum sıkıştırma</strong><small>Daha düşük çözünürlük; küçük yazılar bulanıklaşabilir.</small></span></label><p class="hint">Görüntüye dönüştürme sonucunda dosya küçülmezse orijinal PDF saklanır. Büyük kitaplarda işlem uzun sürebilir.</p><div class="modal-actions"><button value="cancel">Vazgeç</button><button value="ok" class="primary-btn">İçe aktar</button></div></form></dialog>
 <dialog id="noteDialog" class="modal"><form method="dialog"><h3>Sayfa notu</h3><textarea id="noteText" rows="6" placeholder="Bu sayfadaki düşünceleriniz…"></textarea><div class="modal-actions"><button id="deleteNoteBtn" type="button" class="danger-btn hidden">Notu sil</button><button value="cancel">Vazgeç</button><button id="saveNoteBtn" type="button" class="primary-btn">Kaydet</button></div></form></dialog>
 <dialog id="helpDialog" class="modal"><form method="dialog"><h3>Sayfa nasıl kullanılır?</h3><p><strong>Kitap:</strong> PDF ekle; kitaplar bu cihazın tarayıcı depolama alanında saklanır. Kitaba tıklayınca kaldığın sayfa açılır.</p><p><strong>Kalem:</strong> Önce bir kalem türü, renk ve kalınlık seç; ardından sayfanın üzerine çiz. “Oku” ile sayfayı normal kaydır.</p><p><strong>Not:</strong> “Not” aracını seçip sayfaya dokun; daha sonra çıkan işarete dokunarak düzenle.</p><p><strong>Silgi:</strong> Bir çizginin üzerine dokun veya üzerinden sürükle. Geri al / ileri al kullanılabilir.</p><p><strong>Sayfalar:</strong> Okuma modunda sola kaydırınca sonraki, sağa kaydırınca önceki sayfaya geçilir. Alttaki sayfa numarasına dokunarak sayfa seçiciyi açın.</p><p class="hint">Sıkıştırılmış görsel kitaplarda metin seçilemez. Depolama alanı veya tarayıcı verileri silinirse kitaplar kaybolabilir.</p><p><strong>Güncellemeler:</strong> Kitaplıktayken sağ üstteki ↻ düğmesi güncel sürümü kontrol eder. Okurken üstteki ✎ kalem araçlarını, ⋯ ise diğer seçenekleri açar. Kitaplar ve notlar cihazda saklanmaya devam eder.</p><div class="modal-actions"><button value="ok" class="primary-btn">Anladım</button></div></form></dialog>
 <script type="module" src="./app-v0.1.12.js"></script>

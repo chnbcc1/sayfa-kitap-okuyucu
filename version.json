@@ -1,5 +1,5 @@
 {
-  "version": "0.1.12",
+  "version": "0.1.13",
   "released": "2026-11-18",
-  "summary": "iOS 27 ana ekran uygulaması üst bulanıklığı için uyumluluk katmanı; yedek kalkanı güncelleme düğmesi yanında; arama kutusu mobilde tam genişlikte."
+  "summary": "PDF kapakları JPEG veri bağlantısıyla kalıcı gösteriliyor; kitap sayfa kaydı kapağı ezmiyor; daha gerçekçi sayfa kıvrılma animasyonu."
 }

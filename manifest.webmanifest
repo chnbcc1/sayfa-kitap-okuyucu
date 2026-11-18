@@ -10,6 +10,12 @@
   "theme_color": "#526c60",
   "icons": [
     {
+      "src": "./apple-touch-icon.png",
+      "sizes": "120x120",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
       "src": "./sahife-icon-96.jpg",
       "sizes": "96x96",
       "type": "image/jpeg",

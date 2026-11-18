@@ -482,7 +482,7 @@ async function openReader(id){
   selectTool('hand');
   await goToPage(state.page,false);
 }
-async function closeReader(){if(!state.book)return;state.renderSerial++;if(state.renderTask){state.renderTask.cancel();await state.renderTask.promise.catch(()=>{});state.renderTask=null;}if(state.pdfDoc){await state.pdfDoc.destroy().catch(()=>{});state.pdfDoc=null;}if(state.pageUrl){URL.revokeObjectURL(state.pageUrl);state.pageUrl=null;}state.book=null;state.marks={strokes:[],notes:[]};$('pageSheet').classList.remove('turn-next','turn-prev');}
+async function closeReader(){stopCurlGesture();clearPagePreviewCache();if(!state.book)return;state.renderSerial++;if(state.renderTask){state.renderTask.cancel();await state.renderTask.promise.catch(()=>{});state.renderTask=null;}if(state.pdfDoc){await state.pdfDoc.destroy().catch(()=>{});state.pdfDoc=null;}if(state.pageUrl){URL.revokeObjectURL(state.pageUrl);state.pageUrl=null;}state.book=null;state.marks={strokes:[],notes:[]};$('pageSheet').classList.remove('turn-next','turn-prev');}
 function updatePager(){if(!state.book)return;$('readerPageBadge').textContent=state.page+' / '+state.book.pageCount;$('pageCount').textContent=`${state.page} / ${state.book.pageCount}`;$('pageSlider').value=String(state.page);for(const id of ['prevPageBtn','previousPageFloat'])$(id).disabled=state.page<=1;for(const id of ['nextPageBtn','nextPageFloat'])$(id).disabled=state.page>=state.book.pageCount;const saved=state.book.bookmarks||[];$('bookmarkBtn').classList.toggle('active',saved.includes(state.page));$('bookmarkBtn').firstChild.textContent=saved.includes(state.page)?'★ ':'☆ ';}
 async function loadMarks(bookId,page,serial){
   const record=await dbRead('marks',`${bookId}:${page}`);
@@ -496,6 +496,7 @@ async function saveMarks(){
   const marks=JSON.parse(JSON.stringify(state.marks));
   $('saveStatus').textContent='Kaydediliyor…';
   await dbPut('marks',{key:`${bookId}:${page}`,bookId,page,strokes:marks.strokes,notes:marks.notes});
+  for(const key of pagePreviewCache.keys())if(key.startsWith(bookId+':'+page+':'))pagePreviewCache.delete(key);
   if(state.book&&state.book.id===bookId&&state.page===page)$('saveStatus').textContent='Notlar kaydedildi';
 }
 function snapshot(){state.undo.push(JSON.stringify(state.marks));if(state.undo.length>50)state.undo.shift();state.redo=[];}
@@ -531,7 +532,7 @@ function createCurlPainter(overlay,dir){
   const bands=Math.max(32,Math.min(64,Math.ceil(h/19)));
   const rowH=h/bands;
   const clamp=x=>Math.max(0,Math.min(w,x));
-  const ease=p=>p<.5?4*p*p*p:1-Math.pow(-2*p+2,3)/2;
+  // Finger motion must be linear; release animation is eased separately.
 
   // The snapshot is the EXISTING TOP page. The newly rendered page stays
   // stationary below it and is revealed wherever this canvas becomes clear.
@@ -576,7 +577,7 @@ function createCurlPainter(overlay,dir){
     ctx.closePath();
   }
   function drawFrame(progress){
-    const t=ease(progress),curvature=Math.sin(Math.PI*t);
+    const t=Math.max(0,Math.min(1,progress)),curvature=Math.sin(Math.PI*t);
     ctx.clearRect(0,0,w,h);
     if(t>=.99999)return;
 
@@ -791,8 +792,9 @@ function scheduleAdjacentPreviews(serial){
     }
   },180);
 }
-async function goToPage(number,animate=true){
+async function goToPage(number,animate=true,options={}){
   if(!state.book)return;
+  if(state.curlGesture&&!options.fromCurl)stopCurlGesture();
   number=Math.max(1,Math.min(state.book.pageCount,Number(number)||1));
   const previous=state.page;
   if(number===previous&&animate)return;
@@ -837,7 +839,7 @@ async function paintPage(serial){if(!state.book||serial!==state.renderSerial)ret
        sheet.style.aspectRatio=`${record.width} / ${record.height}`;
        sheet.style.minHeight='0';image.src=url;await new Promise((resolve,reject)=>{if(image.complete&&image.naturalWidth)return resolve();image.onload=resolve;image.onerror=()=>reject(new Error('Görsel açılamadı.'));});
     }
-    if(serial!==state.renderSerial)return;spinner.classList.add('hidden');setupDrawingCanvas();renderAnnotations();renderNotePins();if(state.page===1&&!state.book.coverDataUrl)ensureVisibleCover(serial).catch(e=>console.warn('Kapak:',e));$('viewerArea').scrollTo({top:0,behavior:'auto'});
+    if(serial!==state.renderSerial)return;spinner.classList.add('hidden');setupDrawingCanvas();renderAnnotations();renderNotePins();if(state.page===1&&!state.book.coverDataUrl)ensureVisibleCover(serial).catch(e=>console.warn('Kapak:',e));$('viewerArea').scrollTo({top:0,behavior:'auto'});scheduleAdjacentPreviews(serial);
   }catch(e){if(serial!==state.renderSerial)return;console.error(e);spinner.textContent='Sayfa açılamadı: '+(e.message||'bilinmeyen hata');toast('Sayfa açılamadı: '+e.message,6000);}finally{if(state.renderTask===ownTask)state.renderTask=null;}
 }
 function setupDrawingCanvas(){const sheet=$('pageSheet');const canvas=$('annotationCanvas');const w=sheet.clientWidth,h=sheet.clientHeight;if(w<2||h<2)return;const dpr=Math.min(window.devicePixelRatio||1,2);canvas.width=Math.round(w*dpr);canvas.height=Math.round(h*dpr);canvas.style.width=w+'px';canvas.style.height=h+'px';canvas.getContext('2d').setTransform(dpr,0,0,dpr,0,0);}
@@ -855,7 +857,7 @@ async function onPointerUp(e){if(!state.drawing)return;e.preventDefault();state.
 function editNote(note){state.editingNote=note;state.notePosition={x:note.x,y:note.y};$('noteText').value=note.text;$('deleteNoteBtn').classList.remove('hidden');$('noteDialog').showModal();}
 async function saveNote(){const text=$('noteText').value.trim();if(!text){toast('Boş not kaydedilmedi.');return;}snapshot();if(state.editingNote){state.editingNote.text=text;}else{state.marks.notes.push({id:uniqueId(),text,...state.notePosition,createdAt:Date.now()});}$('noteDialog').close();renderNotePins();await saveMarks();}
 async function deleteNote(){if(!state.editingNote)return;snapshot();state.marks.notes=state.marks.notes.filter(n=>n.id!==state.editingNote.id);$('noteDialog').close();renderNotePins();await saveMarks();}
-function selectTool(tool){settings.tool=tool;document.body.classList.toggle('pen-active',tool!=='hand');saveSettings();document.querySelectorAll('.pen-tool').forEach(b=>b.classList.toggle('selected',b.dataset.tool===tool));$('pageSheet').classList.toggle('drawing',tool!=='hand');$('annotationCanvas').style.pointerEvents=tool==='hand'?'none':'auto';$('annotationCanvas').style.touchAction=tool==='hand'?'auto':'none';updatePreview();}
+function selectTool(tool){if(tool!=='hand')stopCurlGesture();settings.tool=tool;document.body.classList.toggle('pen-active',tool!=='hand');saveSettings();document.querySelectorAll('.pen-tool').forEach(b=>b.classList.toggle('selected',b.dataset.tool===tool));$('pageSheet').classList.toggle('drawing',tool!=='hand');$('annotationCanvas').style.pointerEvents=tool==='hand'?'none':'auto';$('annotationCanvas').style.touchAction=tool==='hand'?'auto':'none';updatePreview();}
 function updatePreview(){document.querySelectorAll('.swatch').forEach(s=>s.classList.toggle('selected',s.dataset.color===settings.color));$('widthSlider').value=String(settings.width);$('widthOutput').textContent=settings.width+' / 12';const path=$('previewPath');path.setAttribute('stroke',settings.tool==='eraser'?'#777777':settings.color);path.setAttribute('stroke-width',String(settings.width*(settings.tool==='highlighter'?1.6:1)));path.setAttribute('opacity',String(settings.tool==='highlighter'?.40:settings.tool==='pencil'?.65:1));}
 function setupSwipeGestures(){
   const area=$('viewerArea');let start=null;
@@ -902,7 +904,7 @@ function setupControls(){
      $('readerPenBtn').setAttribute('aria-expanded','false');
      $('readerToolbar').classList.toggle('hidden');
    });
-   $('readerPageBadge').addEventListener('click',()=>$('pageFooter').classList.toggle('page-footer-open'));$('searchInput').addEventListener('input',()=>showLibrary().catch(e=>toast(e.message)));$('themeBtn').addEventListener('click',()=>{settings.dark=!settings.dark;saveSettings();applyTheme();});$('helpBtn').addEventListener('click',()=>$('helpDialog').showModal());$('penToolbarBtn').addEventListener('click',togglePenPanel);$('pageAnimationBtn').addEventListener('click',()=>{settings.animation=!settings.animation;saveSettings();$('pageAnimationBtn').classList.toggle('active',settings.animation);toast(settings.animation?'Sayfa animasyonu açıldı.':'Sayfa animasyonu kapatıldı.');});$('bookmarkBtn').addEventListener('click',async()=>{if(!state.book)return;const saved=state.book.bookmarks||[];state.book.bookmarks=saved.includes(state.page)?saved.filter(p=>p!==state.page):[...saved,state.page].sort((a,b)=>a-b);await dbPatchBook(state.book.id,{bookmarks:state.book.bookmarks});updatePager();toast(saved.includes(state.page)?'Yer imi kaldırıldı.':'Yer imi kaydedildi.');});$('notesListBtn').addEventListener('click',()=>{const notes=state.marks.notes;const msg=notes.length?notes.map((n,i)=>`${i+1}. ${n.text}`).join('\n\n'):'Bu sayfada metin notu bulunmuyor. “Not” aracını seçip sayfaya dokunabilirsiniz.';alert(msg);});$('saveNoteBtn').addEventListener('click',()=>saveNote().catch(e=>toast(e.message)));$('deleteNoteBtn').addEventListener('click',()=>deleteNote().catch(e=>toast(e.message)));for(const id of ['prevPageBtn','previousPageFloat'])$(id).addEventListener('click',()=>goToPage(state.page-1).catch(e=>toast(e.message)));for(const id of ['nextPageBtn','nextPageFloat'])$(id).addEventListener('click',()=>goToPage(state.page+1).catch(e=>toast(e.message)));$('pageSlider').addEventListener('change',e=>goToPage(Number(e.target.value)).catch(err=>toast(err.message)));window.addEventListener('keydown',e=>{if(!state.book||document.querySelector('dialog[open]'))return;if(e.target.matches('input,textarea'))return;if(e.ctrlKey&&e.key.toLowerCase()==='z'){e.preventDefault();(e.shiftKey?redo():undo()).catch(err=>toast(err.message));}else if(e.key==='ArrowRight')goToPage(state.page+1).catch(err=>toast(err.message));else if(e.key==='ArrowLeft')goToPage(state.page-1).catch(err=>toast(err.message));});window.addEventListener('resize',()=>{if(!state.book)return;clearTimeout(state.resizeTimer);state.resizeTimer=setTimeout(()=>paintPage(++state.renderSerial),240);});}
+   $('readerPageBadge').addEventListener('click',()=>$('pageFooter').classList.toggle('page-footer-open'));$('searchInput').addEventListener('input',()=>showLibrary().catch(e=>toast(e.message)));$('themeBtn').addEventListener('click',()=>{settings.dark=!settings.dark;saveSettings();applyTheme();});$('helpBtn').addEventListener('click',()=>$('helpDialog').showModal());$('penToolbarBtn').addEventListener('click',togglePenPanel);$('pageAnimationBtn').addEventListener('click',()=>{stopCurlGesture();settings.animation=!settings.animation;if(!settings.animation)clearPagePreviewCache();saveSettings();$('pageAnimationBtn').classList.toggle('active',settings.animation);toast(settings.animation?'Sayfa animasyonu açıldı.':'Sayfa animasyonu kapatıldı.');});$('bookmarkBtn').addEventListener('click',async()=>{if(!state.book)return;const saved=state.book.bookmarks||[];state.book.bookmarks=saved.includes(state.page)?saved.filter(p=>p!==state.page):[...saved,state.page].sort((a,b)=>a-b);await dbPatchBook(state.book.id,{bookmarks:state.book.bookmarks});updatePager();toast(saved.includes(state.page)?'Yer imi kaldırıldı.':'Yer imi kaydedildi.');});$('notesListBtn').addEventListener('click',()=>{const notes=state.marks.notes;const msg=notes.length?notes.map((n,i)=>`${i+1}. ${n.text}`).join('\n\n'):'Bu sayfada metin notu bulunmuyor. “Not” aracını seçip sayfaya dokunabilirsiniz.';alert(msg);});$('saveNoteBtn').addEventListener('click',()=>saveNote().catch(e=>toast(e.message)));$('deleteNoteBtn').addEventListener('click',()=>deleteNote().catch(e=>toast(e.message)));for(const id of ['prevPageBtn','previousPageFloat'])$(id).addEventListener('click',()=>goToPage(state.page-1).catch(e=>toast(e.message)));for(const id of ['nextPageBtn','nextPageFloat'])$(id).addEventListener('click',()=>goToPage(state.page+1).catch(e=>toast(e.message)));$('pageSlider').addEventListener('change',e=>goToPage(Number(e.target.value)).catch(err=>toast(err.message)));window.addEventListener('keydown',e=>{if(!state.book||document.querySelector('dialog[open]'))return;if(e.target.matches('input,textarea'))return;if(e.ctrlKey&&e.key.toLowerCase()==='z'){e.preventDefault();(e.shiftKey?redo():undo()).catch(err=>toast(err.message));}else if(e.key==='ArrowRight')goToPage(state.page+1).catch(err=>toast(err.message));else if(e.key==='ArrowLeft')goToPage(state.page-1).catch(err=>toast(err.message));});window.addEventListener('resize',()=>{if(!state.book)return;stopCurlGesture();clearPagePreviewCache();clearTimeout(state.resizeTimer);state.resizeTimer=setTimeout(()=>paintPage(++state.renderSerial),240);});}
 function applyTheme(){document.body.classList.toggle('dark',settings.dark);$('themeBtn').textContent=settings.dark?'☀':'☾';}
 const APP_VERSION='0.1.15';
 let updateCheckPending=false;

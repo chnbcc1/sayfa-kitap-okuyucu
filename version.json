@@ -1,5 +1,5 @@
 {
-  "version": "0.1.13",
+  "version": "0.1.14",
   "released": "2026-11-18",
-  "summary": "PDF kapakları JPEG veri bağlantısıyla kalıcı gösteriliyor; kitap sayfa kaydı kapağı ezmiyor; daha gerçekçi sayfa kıvrılma animasyonu."
+  "summary": "Sayfa geçişinde mevcut üst sayfa kıvrılarak alttaki yeni sayfayı ortaya çıkarıyor; kitaplığın altındaki gereksiz açıklama kaldırıldı."
 }

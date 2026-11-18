@@ -212,11 +212,26 @@ async function repairCover(book,card=null,{force=false}={}){
       }else{
         const firstPage=await dbRead('pages',book.id+':1');
         if(firstPage?.blob){
-          const bitmap=await createImageBitmap(firstPage.blob);
+          // Older iPhones might not expose createImageBitmap: use an Image fallback.
+          let bitmap=null,temporaryUrl=null;
+          try{
+            if(typeof createImageBitmap==='function')bitmap=await createImageBitmap(firstPage.blob);
+          }catch(e){console.warn('Alternatif kapak çözme kullanılacak:',e);}
+          if(!bitmap){
+            temporaryUrl=URL.createObjectURL(firstPage.blob);
+            bitmap=new Image();
+            await new Promise((resolve,reject)=>{
+              bitmap.onload=resolve;
+              bitmap.onerror=()=>reject(new Error('Görsel sayfa okunamadı.'));
+              bitmap.src=temporaryUrl;
+            });
+          }
           const canvas=document.createElement('canvas');
-          canvas.width=224;canvas.height=Math.round(224*bitmap.height/bitmap.width);
+          canvas.width=224;
+          canvas.height=Math.max(120,Math.round(224*bitmap.height/bitmap.width));
           canvas.getContext('2d').drawImage(bitmap,0,0,canvas.width,canvas.height);
           bitmap.close?.();
+          if(temporaryUrl)URL.revokeObjectURL(temporaryUrl);
           cover=await canvasBlob(canvas,'image/jpeg',.84);
         }
       }

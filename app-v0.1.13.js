@@ -512,104 +512,120 @@ function finishPageFlip(overlay,dir){
   original.width=w;original.height=h;
   original.getContext('2d',{alpha:false}).drawImage(overlay,0,0);
   const ctx=overlay.getContext('2d',{alpha:true});
-  const forward=dir==='next';
-  const prefersReduced=window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-  const duration=prefersReduced?170:770;
+  const forward=dir==='next',side=forward?1:-1;
+  const reduced=window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+  const duration=reduced?150:710;
   const start=performance.now();
-  const segments=Math.max(24,Math.ceil(h/35));
-  const step=h/segments;
-  function drawFrame(progress){
-    const t=progress*progress*(3-2*progress);
-    const curl=Math.sin(Math.PI*t);
-    const foldWidth=.23*w*Math.pow(Math.max(0,curl),.72);
-    const direction=forward?1:-1;
-    const at=(y)=>{
-      const naturalBend=(Math.sin(Math.PI*y/h)-.35)*.055*w*curl;
-      const verticalOffset=(y/h-.5)*.022*w*curl;
-      return Math.max(0,Math.min(w,(forward?1-t:t)*w+naturalBend+verticalOffset));
-    };
-    ctx.clearRect(0,0,w,h);
-    if(t>=1)return;
-    // The unfolded sheet retains its original dimensions and is clipped by a curved crease.
-    ctx.save();ctx.beginPath();
-    if(forward){ctx.moveTo(0,0);ctx.lineTo(at(0),0);}
-    else{ctx.moveTo(w,0);ctx.lineTo(at(0),0);}
-    for(let i=1;i<=segments;i++)ctx.lineTo(at(i*step),Math.min(h,i*step));
-    ctx.lineTo(forward?0:w,h);
-    ctx.closePath();ctx.clip();
-    ctx.drawImage(original,0,0,w,h);
-    ctx.restore();
-    if(foldWidth<.6)return;
-    // Draw the curved underside of the paper. The old printed page is faintly visible
-    // through it instead of a solid grey strip.
-    ctx.save();ctx.beginPath();
-    for(let i=0;i<=segments;i++){
-      const y=Math.min(h,i*step);
-      if(i===0)ctx.moveTo(at(y),y);else ctx.lineTo(at(y),y);
+  const bands=Math.max(28,Math.min(58,Math.ceil(h/24)));
+  const rowH=h/bands;
+  const clamp=x=>Math.max(0,Math.min(w,x));
+  const edgeAt=(t,y)=>{
+    const v=y/h,bend=Math.sin(Math.PI*t);
+    // The bottom corner leads the page slightly; the spine bends gently.
+    const lag=(.5-v)*w*.095*bend;
+    const round=(Math.cos(Math.PI*(v-.42))-.7)*w*.038*bend;
+    return clamp((forward?1-t:t)*w+side*(lag+round));
+  };
+  const foldAt=(t,y)=>{
+    const v=y/h;
+    const arc=Math.pow(Math.max(0,Math.sin(Math.PI*t)),.86);
+    return w*.22*arc*(.48+.52*Math.sin(Math.PI*(.13+.74*v)));
+  };
+  function makePath(t,fold=false){
+    ctx.beginPath();
+    const x0=edgeAt(t,0);
+    if(!fold)ctx.moveTo(forward?0:w,0);
+    else ctx.moveTo(x0,0);
+    if(!fold)ctx.lineTo(x0,0);
+    for(let i=1;i<=bands;i++){
+      const y=Math.min(h,i*rowH);
+      ctx.lineTo(edgeAt(t,y),y);
     }
-    for(let i=segments;i>=0;i--){
-      const y=Math.min(h,i*step);
-      const taper=.50+.50*Math.sin(Math.PI*y/h);
-      ctx.lineTo(at(y)+direction*foldWidth*taper,y);
-    }
-    ctx.closePath();ctx.clip();
-    ctx.fillStyle='#fffdf8';ctx.fillRect(0,0,w,h);
-    // Reflected text on the reverse side gives the turning paper physical texture.
-    ctx.save();ctx.globalAlpha=.14;
-    for(let i=0;i<segments;i++){
-      const y=i*step,mid=y+step/2;
-      const x=at(mid),width=foldWidth*(.5+.5*Math.sin(Math.PI*mid/h));
-      const sourceW=Math.min(w,Math.max(2,width*1.4));
-      if(forward){
-        ctx.save();ctx.translate(x+width,0);ctx.scale(-1,1);
-        ctx.drawImage(original,w-sourceW,y,sourceW,step+1,0,y,width,step+1);
-        ctx.restore();
-      }else{
-        ctx.save();ctx.translate(x-width,0);ctx.scale(-1,1);
-        ctx.drawImage(original,0,y,sourceW,step+1,0,y,width,step+1);
-        ctx.restore();
+    if(fold){
+      for(let i=bands;i>=0;i--){
+        const y=Math.min(h,i*rowH);
+        ctx.lineTo(edgeAt(t,y)+side*foldAt(t,y),y);
       }
-    }
-    ctx.restore();
-    const mid=at(h/2);
-    const light=ctx.createLinearGradient(mid,0,mid+direction*foldWidth,0);
-    light.addColorStop(0,'rgba(68,61,48,.32)');
-    light.addColorStop(.15,'rgba(226,220,207,.36)');
-    light.addColorStop(.44,'rgba(255,255,252,.85)');
-    light.addColorStop(.72,'rgba(247,245,238,.6)');
-    light.addColorStop(1,'rgba(196,187,169,.5)');
-    ctx.fillStyle=light;ctx.fillRect(0,0,w,h);
-    ctx.restore();
-    // Gradual shadow directly beyond the crease, on the newly revealed page.
+    }else ctx.lineTo(forward?0:w,h);
+    ctx.closePath();
+  }
+  function draw(tRaw){
+    const t=tRaw*tRaw*(3-2*tRaw);
+    const curl=Math.sin(Math.PI*t);
+    ctx.clearRect(0,0,w,h);
+    if(t>=.9999)return;
+    // The readable side remains flat and sharp. Only the turning edge deforms.
+    ctx.save();makePath(t,false);ctx.clip();
+    ctx.drawImage(original,0,0,w,h);ctx.restore();
+    if(curl<.005)return;
+
+    // Soft cast shadow on the revealed page, following its rounded crease.
     ctx.save();
-    for(let i=0;i<segments;i++){
-      const y=i*step,edge=at(y+step/2),shadowW=w*.065*curl;
-      const left=Math.max(0,edge-shadowW),right=Math.min(w,edge+shadowW);
+    for(let i=0;i<bands;i++){
+      const y=i*rowH,mid=y+rowH/2,x=edgeAt(t,mid);
+      const shadowW=w*.060*curl;
+      const left=clamp(x-shadowW),right=clamp(x+shadowW);
       if(right<=left)continue;
-      const shade=ctx.createLinearGradient(left,y,right,y);
-      shade.addColorStop(0,'rgba(25,23,19,0)');
-      shade.addColorStop(.48,'rgba(25,23,19,.13)');
-      shade.addColorStop(1,'rgba(25,23,19,0)');
-      ctx.fillStyle=shade;ctx.fillRect(left,y,right-left,step+1);
+      const gradient=ctx.createLinearGradient(left,0,right,0);
+      gradient.addColorStop(0,'rgba(38,34,27,0)');
+      gradient.addColorStop(.46,'rgba(38,34,27,.18)');
+      gradient.addColorStop(1,'rgba(38,34,27,0)');
+      ctx.fillStyle=gradient;ctx.fillRect(left,y,right-left,rowH+1);
     }
-    ctx.strokeStyle='rgba(100,90,76,.34)';
+    ctx.restore();
+
+    // The back of the curling page: warm paper, faint mirrored printing,
+    // a rounded highlight, and a narrow dark line where paper leaves the plane.
+    ctx.save();makePath(t,true);ctx.clip();
+    ctx.fillStyle='#fffdf8';ctx.fillRect(0,0,w,h);
+    ctx.globalAlpha=.20;
+    for(let i=0;i<bands;i++){
+      const y=i*rowH,mid=y+rowH/2,x=edgeAt(t,mid),f=foldAt(t,mid);
+      if(f<1)continue;
+      const srcW=Math.min(w,Math.max(2,f*1.35));
+      ctx.save();
+      if(forward){
+        ctx.translate(x+f,0);ctx.scale(-1,1);
+        ctx.drawImage(original,w-srcW,y,srcW,rowH+1,0,y,f,rowH+1);
+      }else{
+        ctx.translate(x-f,0);ctx.scale(-1,1);
+        ctx.drawImage(original,0,y,srcW,rowH+1,0,y,f,rowH+1);
+      }
+      ctx.restore();
+    }
+    ctx.globalAlpha=1;
+    for(let i=0;i<bands;i++){
+      const y=i*rowH,mid=y+rowH/2,x=edgeAt(t,mid),f=foldAt(t,mid);
+      if(f<.7)continue;
+      const grad=ctx.createLinearGradient(x,0,x+side*f,0);
+      grad.addColorStop(0,'rgba(87,77,62,.38)');
+      grad.addColorStop(.13,'rgba(204,199,186,.36)');
+      grad.addColorStop(.37,'rgba(255,255,255,.76)');
+      grad.addColorStop(.67,'rgba(255,255,249,.34)');
+      grad.addColorStop(1,'rgba(179,170,155,.27)');
+      ctx.fillStyle=grad;
+      ctx.fillRect(Math.min(x,x+side*f),y,f,rowH+1);
+    }
+    ctx.restore();
+    // Subtle edge instead of a thick grey hinge.
+    ctx.save();ctx.strokeStyle='rgba(84,76,63,.29)';
     ctx.lineWidth=Math.max(.6,w/1100);
     ctx.beginPath();
-    for(let i=0;i<=segments;i++){
-      const y=Math.min(h,i*step);
-      if(i===0)ctx.moveTo(at(y),y);else ctx.lineTo(at(y),y);
+    for(let i=0;i<=bands;i++){
+      const y=Math.min(h,i*rowH),x=edgeAt(t,y);
+      if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
     }
     ctx.stroke();ctx.restore();
   }
-  function tick(now){
+  draw(0);
+  function frame(now){
     if(!overlay.isConnected)return;
     const t=Math.min(1,(now-start)/duration);
-    drawFrame(t);
-    if(t<1)requestAnimationFrame(tick);
+    draw(t);
+    if(t<1)requestAnimationFrame(frame);
     else overlay.remove();
   }
-  drawFrame(0);
-  requestAnimationFrame(tick);
+  requestAnimationFrame(frame);
 }
 async function goToPage(number,animate=true){
   if(!state.book)return;

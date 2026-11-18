@@ -859,23 +859,168 @@ async function saveNote(){const text=$('noteText').value.trim();if(!text){toast(
 async function deleteNote(){if(!state.editingNote)return;snapshot();state.marks.notes=state.marks.notes.filter(n=>n.id!==state.editingNote.id);$('noteDialog').close();renderNotePins();await saveMarks();}
 function selectTool(tool){if(tool!=='hand')stopCurlGesture();settings.tool=tool;document.body.classList.toggle('pen-active',tool!=='hand');saveSettings();document.querySelectorAll('.pen-tool').forEach(b=>b.classList.toggle('selected',b.dataset.tool===tool));$('pageSheet').classList.toggle('drawing',tool!=='hand');$('annotationCanvas').style.pointerEvents=tool==='hand'?'none':'auto';$('annotationCanvas').style.touchAction=tool==='hand'?'auto':'none';updatePreview();}
 function updatePreview(){document.querySelectorAll('.swatch').forEach(s=>s.classList.toggle('selected',s.dataset.color===settings.color));$('widthSlider').value=String(settings.width);$('widthOutput').textContent=settings.width+' / 12';const path=$('previewPath');path.setAttribute('stroke',settings.tool==='eraser'?'#777777':settings.color);path.setAttribute('stroke-width',String(settings.width*(settings.tool==='highlighter'?1.6:1)));path.setAttribute('opacity',String(settings.tool==='highlighter'?.40:settings.tool==='pencil'?.65:1));}
+async function prepareCurlPreview(gesture){
+  try{
+    const cached=await getPagePreview(
+      gesture.bookId,gesture.target,gesture.overlay.width,gesture.overlay.height
+    );
+    if(!gesture.active||state.curlGesture!==gesture||!gesture.overlay.isConnected)return false;
+    const sheet=$('pageSheet');
+    cached.classList.add('page-turn-preview');
+    sheet.insertBefore(cached,gesture.overlay);
+    gesture.preview=cached;
+    gesture.ready=true;
+    gesture.painter(gesture.progress);
+    return true;
+  }catch(error){
+    console.warn('Canlı sayfa önizlemesi hazırlanamıyor:',error);
+    gesture.error=error;
+    return false;
+  }
+}
+async function settleCurlGesture(gesture,shouldComplete){
+  if(!gesture?.active||gesture.settling)return;
+  gesture.settling=true;
+  if(gesture.previewPromise)await gesture.previewPromise;
+  if(!gesture.active||state.curlGesture!==gesture)return;
+  const reduced=window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+  if(!gesture.ready){
+    // A corrupt or slow preview must never commit without the real reader being
+    // able to open the target. Use the existing safe navigation as a fallback.
+    stopCurlGesture();
+    if(shouldComplete){
+      try{await goToPage(gesture.target,false);}
+      catch(error){toast('Sayfa açılamadı: '+error.message,5500);}
+    }else if(gesture.error){
+      toast('Sayfa önizlemesi hazırlanamadı; tekrar deneyin.',4500);
+    }
+    return;
+  }
+  const end=shouldComplete?1:0;
+  const remaining=Math.abs(end-gesture.progress);
+  const duration=reduced?100:Math.max(150,Math.round(380*remaining));
+  const finished=await runCurlAnimation(gesture,end,duration);
+  if(!finished||!gesture.active||state.curlGesture!==gesture)return;
+  if(!shouldComplete){stopCurlGesture();return;}
+  try{
+    // The destination image stays under the completely turned page while
+    // PDF.js renders the full-resolution page and the reader saves progress.
+    await goToPage(gesture.target,false,{fromCurl:true});
+    if(!gesture.active)return;
+    if(state.page!==gesture.target)toast('Sayfa değiştirilemedi; tekrar deneyin.',4500);
+  }catch(error){toast('Sayfa açılamadı: '+error.message,6500);}
+  finally{if(state.curlGesture===gesture)stopCurlGesture();}
+}
 function setupSwipeGestures(){
-  const area=$('viewerArea');let start=null;
+  const area=$('viewerArea');
+  let start=null;
+  const finger=(touches,id)=>{
+    for(const t of Array.from(touches||[]))if(t.identifier===id)return t;
+    return null;
+  };
   area.addEventListener('touchstart',e=>{
-    if(settings.tool!=='hand'||!state.book||state.busy||e.touches.length!==1||e.target.closest('button')||document.querySelector('dialog[open]')){start=null;return;}
-    const t=e.touches[0];start={x:t.clientX,y:t.clientY,at:Date.now(),page:state.page};
+    if(e.touches.length!==1){
+      start=null;stopCurlGesture();return;
+    }
+    if(settings.tool!=='hand'||!state.book||state.busy||state.curlGesture||
+       e.target.closest('button,input,textarea,[contenteditable]')||
+       document.querySelector('dialog[open]')){
+      start=null;return;
+    }
+    const touch=e.touches[0];
+    start={
+      id:touch.identifier,x:touch.clientX,y:touch.clientY,at:performance.now(),
+      page:state.page,bookId:state.book.id,turned:false
+    };
   },{passive:true});
+
+  area.addEventListener('touchmove',e=>{
+    if(!start||!state.book||settings.tool!=='hand')return;
+    const t=finger(e.touches,start.id);
+    if(!t||e.touches.length!==1){start=null;stopCurlGesture();return;}
+    if(state.book.id!==start.bookId||state.page!==start.page){
+      start=null;stopCurlGesture();return;
+    }
+    const dx=t.clientX-start.x,dy=t.clientY-start.y;
+    if(!start.turned){
+      if(Math.abs(dy)>13&&Math.abs(dy)>Math.abs(dx)*1.25){
+        start=null;return; // Vertical scrolling is not page turning.
+      }
+      if(Math.abs(dx)<12||Math.abs(dx)<Math.abs(dy)*1.2)return;
+      if(!settings.animation){
+        start.turned=true; // Existing immediate swipe behavior.
+      }else{
+        const direction=dx<0?'next':'prev';
+        const target=state.page+(direction==='next'?1:-1);
+        if(target<1||target>state.book.pageCount){start=null;return;}
+        const overlay=makePageFlipSnapshot();
+        if(!overlay){start=null;return;}
+        const painter=createCurlPainter(overlay,direction);
+        if(!painter){overlay.remove();start=null;return;}
+        const gesture={
+          active:true,ready:false,settling:false,overlay,painter,direction,target,
+          bookId:start.bookId,page:start.page,progress:0,
+          startX:start.x,startAt:start.at,lastX:t.clientX,
+          preview:null,previewPromise:null,framePending:false,error:null
+        };
+        state.curlGesture=gesture;
+        start.turned=true;
+        gesture.previewPromise=prepareCurlPreview(gesture);
+      }
+    }
+    if(!settings.animation)return;
+    const gesture=state.curlGesture;
+    if(!gesture?.active||gesture.settling)return;
+    // Don't scroll the viewport once a horizontal page-turn is recognized.
+    if(e.cancelable)e.preventDefault();
+    const delta=gesture.direction==='next'?(gesture.startX-t.clientX):(t.clientX-gesture.startX);
+    const width=Math.max(1,$('pageSheet').getBoundingClientRect().width);
+    gesture.progress=Math.min(1,Math.max(0,delta/width));
+    gesture.lastX=t.clientX;
+    if(gesture.ready&&!gesture.framePending){
+      gesture.framePending=true;
+      requestAnimationFrame(()=>{
+        gesture.framePending=false;
+        if(gesture.active&&!gesture.settling&&gesture.ready)gesture.painter(gesture.progress);
+      });
+    }
+  },{passive:false});
+
   area.addEventListener('touchend',e=>{
     if(!start)return;
-    const pos=start;start=null;
-    if(settings.tool!=='hand'||!state.book||e.changedTouches.length!==1||pos.page!==state.page)return;
-    const t=e.changedTouches[0],dx=t.clientX-pos.x,dy=t.clientY-pos.y;
-    const threshold=Math.max(48,Math.min(area.clientWidth*.15,85));
-    if(Math.abs(dx)>=threshold&&Math.abs(dx)>Math.abs(dy)*1.3&&Date.now()-pos.at<1700){
-      goToPage(state.page+(dx<0?1:-1)).catch(err=>toast(err.message,5000));
+    const pos=start;
+    const t=finger(e.changedTouches,pos.id);
+    if(!t)return;
+    start=null;
+    if(!state.book||state.page!==pos.page||state.book.id!==pos.bookId)return;
+    const dx=t.clientX-pos.x,dy=t.clientY-pos.y;
+    if(!settings.animation){
+      const threshold=Math.max(48,Math.min(area.clientWidth*.15,85));
+      if(Math.abs(dx)>=threshold&&Math.abs(dx)>Math.abs(dy)*1.3){
+        goToPage(state.page+(dx<0?1:-1),false).catch(error=>toast(error.message,5000));
+      }
+      return;
+    }
+    const gesture=state.curlGesture;
+    if(!gesture?.active||gesture.page!==pos.page||gesture.bookId!==pos.bookId)return;
+    // A half-turned page stays under the finger until release. On release it
+    // completes past the midpoint, or springs gently back if dragged less.
+    const elapsed=Math.max(1,performance.now()-pos.at);
+    const distance=Math.abs(dx);
+    const quickFlick=distance>Math.max(48,area.clientWidth*.14)&&distance/elapsed>.55;
+    const shouldComplete=gesture.progress>=.45||quickFlick;
+    settleCurlGesture(gesture,shouldComplete).catch(error=>{
+      stopCurlGesture();toast('Sayfa geçişi tamamlanamadı: '+error.message,6000);
+    });
+  },{passive:true});
+
+  area.addEventListener('touchcancel',()=>{
+    start=null;
+    const gesture=state.curlGesture;
+    if(gesture?.active){
+      settleCurlGesture(gesture,false).catch(()=>stopCurlGesture());
     }
   },{passive:true});
-  area.addEventListener('touchcancel',()=>{start=null;},{passive:true});
 }
 function togglePenPanel(){
   const panel=$('penPanel'),open=panel.classList.contains('hidden');

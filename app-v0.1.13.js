@@ -115,6 +115,16 @@ async function imageBlob(canvas,quality){
   return new Blob([bytes],{type:'image/jpeg'});
 }
 async function renderPageToCanvas(pdfDoc,num,canvas,width=1300){const p=await pdfDoc.getPage(num);const base=p.getViewport({scale:1});const viewport=p.getViewport({scale:Math.min(width/base.width,2.8)});canvas.width=Math.round(viewport.width);canvas.height=Math.round(viewport.height);const context=canvas.getContext('2d',{alpha:false});context.fillStyle='#fff';context.fillRect(0,0,canvas.width,canvas.height);await p.render({canvasContext:context,viewport,background:'#ffffff'}).promise;return canvas;}
+async function coverDataURL(blob){
+  if(typeof blob==='string'&&blob.startsWith('data:image/'))return blob;
+  if(!(blob instanceof Blob))throw new Error('Kapak verisi geçersiz.');
+  return new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    reader.onload=()=>typeof reader.result==='string'&&reader.result.startsWith('data:image/')?resolve(reader.result):reject(new Error('Kapak okunamadı.'));
+    reader.onerror=()=>reject(reader.error||new Error('Kapak dosyası okunamadı.'));
+    reader.readAsDataURL(blob);
+  });
+}
 async function coverFor(doc){
   // Produce a thumbnail from page one before presenting the book in the library.
   // Keep the render small to avoid Safari's canvas memory limits.
@@ -136,7 +146,7 @@ async function coverFor(doc){
   if(!thumbCtx)throw new Error('Kapak küçük resim alanı oluşturulamadı.');
   thumbCtx.fillStyle='#fff';thumbCtx.fillRect(0,0,thumb.width,thumb.height);
   thumbCtx.drawImage(canvas,0,0,thumb.width,thumb.height);
-  const image=await imageBlob(thumb,.78);
+  const image=await canvasBlob(thumb,'image/jpeg',.84);
   if(!image||image.size<100)throw new Error('Kapak görseli boş oluşturuldu.');
   return image;
 }
@@ -251,9 +261,12 @@ async function importFile(file){if(!file||!file.name.toLowerCase().endsWith('.pd
       throw new Error('PDF eksik veya bozuk. İlk/son sayfalar açılamıyor. '+(checkError?.message||checkError));
     }
     stage='Kapak önizlemesi hazırlanıyor';
-    let cover=null;
-    try{cover=await coverFor(doc);}catch(coverError){console.warn('Kapak önizlemesi atlandı:',coverError);}
-    const book={id,title:file.name.replace(/\.pdf$/i,''),fileName:file.name,createdAt:Date.now(),updatedAt:Date.now(),type:'pdf',pageCount:doc.numPages,currentPage:1,bookmarks:[],cover,sha256:pdfHash,verifiedAt:Date.now(),rawSize:file.size,storedSize:file.size,blob:pdfBytes.slice(0)};
+    let cover=null,coverDataUrl=null;
+    try{
+      cover=await coverFor(doc);
+      coverDataUrl=await coverDataURL(cover);
+    }catch(coverError){console.warn('Kapak önizlemesi atlandı:',coverError);}
+    const book={id,title:file.name.replace(/\.pdf$/i,''),fileName:file.name,createdAt:Date.now(),updatedAt:Date.now(),type:'pdf',pageCount:doc.numPages,currentPage:1,bookmarks:[],cover,coverDataUrl,sha256:pdfHash,verifiedAt:Date.now(),rawSize:file.size,storedSize:file.size,blob:pdfBytes.slice(0)};
     if(mode!=='original'){
       stage='Sayfalar sıkıştırılıyor';
       const width=mode==='strong'?1000:1450;
@@ -298,7 +311,7 @@ async function importFile(file){if(!file||!file.name.toLowerCase().endsWith('.pd
     }
     // A cover is prepared before the library list is displayed, not on first opening.
     // If the initial thumbnail render failed, reopen the saved PDF and retry.
-    let coverReady=!!confirmed.cover;
+    let coverReady=!!confirmed.coverDataUrl;
     if(!coverReady){
       stage='Kitap kapağı hazırlanıyor';
       if(doc){await doc.destroy().catch(()=>{});doc=null;}

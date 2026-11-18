@@ -218,3 +218,29 @@ body:not(.reading-mode) .topbar{
     font-size:16px;
   }
 }
+
+/* Sayfa v0.1.15 — finger-controlled page-turn surface. */
+body.reading-mode .page-sheet>.page-turn-preview{
+  position:absolute!important;
+  inset:0!important;
+  z-index:7;
+  display:block;
+  width:100%!important;
+  height:100%!important;
+  max-width:none;
+  max-height:none;
+  pointer-events:none!important;
+  border:0;
+  image-rendering:auto;
+}
+body.reading-mode .page-sheet>.page-turn-overlay{
+  z-index:8;
+  pointer-events:none!important;
+}
+body.reading-mode .viewer-area{
+  touch-action:pan-y;
+  overscroll-behavior:contain;
+}
+body.reading-mode .page-sheet{
+  touch-action:pan-y;
+}

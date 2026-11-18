@@ -1,5 +1,5 @@
 {
-  "version": "0.1.16",
+  "version": "0.1.17",
   "released": "2026-11-18",
-  "summary": "Sayfa kıvrımı artık rulo gibi düz bir şerit değil: parmağın başladığı yüksekliğe göre köşeden çapraz ve giderek incelen kâğıt katı."
+  "summary": "Rulo şerit animasyonu kaldırıldı: üstteki gerçek sayfa köşeden, çapraz katlama çizgisi boyunca yansıtılarak çevriliyor. Parmakla eş zamanlı kontrol korundu."
 }

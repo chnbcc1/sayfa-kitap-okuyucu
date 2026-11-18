@@ -1014,8 +1014,10 @@ function setupSwipeGestures(){
     // A half-turned page stays under the finger until release. On release it
     // completes past the midpoint, or springs gently back if dragged less.
     const elapsed=Math.max(1,performance.now()-pos.at);
-    const distance=Math.abs(dx);
-    const quickFlick=distance>Math.max(48,area.clientWidth*.14)&&distance/elapsed>.55;
+    const forwardDistance=Math.max(0,gesture.direction==='next'?-dx:dx);
+    gesture.progress=Math.min(1,forwardDistance/Math.max(1,$('pageSheet').getBoundingClientRect().width));
+    if(gesture.ready)gesture.painter(gesture.progress);
+    const quickFlick=forwardDistance>Math.max(48,area.clientWidth*.14)&&forwardDistance/elapsed>.55;
     const shouldComplete=gesture.progress>=.45||quickFlick;
     settleCurlGesture(gesture,shouldComplete).catch(error=>{
       stopCurlGesture();toast('Sayfa geçişi tamamlanamadı: '+error.message,6000);

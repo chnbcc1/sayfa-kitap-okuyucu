@@ -244,3 +244,18 @@ body.reading-mode .viewer-area{
 body.reading-mode .page-sheet{
   touch-action:pan-y;
 }
+
+/* Sahife v0.1.18 — brand image from the approved green/ivory home-screen logo. */
+.brand img.brand-icon{
+  display:block;
+  object-fit:cover;
+  object-position:center;
+  flex:none;
+  width:43px;height:43px;
+  border-radius:11px;
+  background:#5b744e;
+  box-shadow:0 2px 7px rgba(32,56,35,.12);
+}
+@media(max-width:700px){
+  .brand img.brand-icon{width:37px;height:37px;border-radius:10px;flex:0 0 37px}
+}

@@ -1,8 +1,10 @@
-# Sayfa — Ücretsiz Kişisel Kitap Okuma Uygulaması
+# Sahife — Ücretsiz Kişisel Kitap Okuma Uygulaması
 
-**Sürüm:** v0.1.7 (18 Kasım 2026, geliştirme ve test sürümü)
+**Sürüm:** v0.1.18 (18 Kasım 2026, geliştirme ve test sürümü)
 
 PDF dosyalarınızı tarayıcınızın cihaz içi veritabanında saklayan, okuduğunuz sayfayı hatırlayan ve PDF üzerine kalemle çizim/not almanıza olanak veren **açık kaynaklı ve ücretsiz** PWA prototipi.
+
+**Yeni marka:** Sahife (önceki adı Sayfa). Uygulamanın GitHub Pages adresi ve IndexedDB veri tabanı adı **değişmedi**; böylece mevcut kitaplık, işaretlemeler ve yedeklerin erişimi korunur. Eski ZIP arşivlerinin biçimi de desteklenmektedir. Ana ekrana daha önce eklenen iPhone simgesi iOS önbelleği nedeniyle hemen değişmeyebilir; önce doğrulanmış harici yedek alınmadan eski kısayol kaldırılmamalıdır.
 
 > **ÖNEMLİ: Orijinal PDF'lerinizi uygulamaya yükledikten sonra silmeyin.** Kitaplık IndexedDB'de, cihazın web uygulaması alanındadır; uygulamayı kaldırmak, tarayıcı verilerini temizlemek veya depolama sorunları verilerin kaybına yol açabilir. Sıfır hata veya kalıcı saklama garantisi yoktur. En az iki bağımsız dış yedek tutun ve geri yüklemeyi test edin.
 

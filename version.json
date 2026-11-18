@@ -1,5 +1,5 @@
 {
-  "version": "0.1.10",
+  "version": "0.1.11",
   "released": "2026-11-18",
-  "summary": "Kapalı yedekleme penceresinin uygulama açılışında anlık görünmesi engellendi."
+  "summary": "Kaydırırken kaybolmayan opak üst başlık; mobilde kitaplık koruma simgesinin ve aramanın daha dengeli yerleşimi."
 }

@@ -152,11 +152,55 @@ async function coverFor(doc){
 }
 const coverRepairInflight=new Map();
 const coverRetryTimes=new Map();
+function showCoverInCard(card,src,onFailure){
+  const area=card?.querySelector('.book-cover');
+  if(!area||!card.isConnected||!src)return;
+  const img=new Image();
+  img.alt='Kitap kapağı';
+  img.onload=()=>{
+    if(!card.isConnected)return;
+    area.querySelectorAll('img,.cover-placeholder').forEach(el=>el.remove());
+    area.insertBefore(img,area.firstChild);
+  };
+  img.onerror=()=>{
+    // Do not leave a broken image or an expired object URL in the library.
+    if(!card.isConnected)return;
+    area.querySelector('img')?.remove();
+    onFailure?.();
+  };
+  img.src=src;
+}
+async function ensureCardCover(book,card){
+  if(!card?.isConnected)return;
+  if(book.coverDataUrl){
+    showCoverInCard(card,book.coverDataUrl,()=>repairCover(book,card,{force:true}));
+    return;
+  }
+  if(book.cover instanceof Blob&&book.cover.size>100){
+    try{
+      const src=await coverDataURL(book.cover);
+      // Some older Safari builds saved a Blob that later cannot be decoded.
+      const img=new Image();
+      await new Promise((resolve,reject)=>{
+        img.onload=resolve;
+        img.onerror=()=>reject(new Error('Eski kapak çözülmedi.'));
+        img.src=src;
+      });
+      await dbPatchBook(book.id,{coverDataUrl:src});
+      if(card.isConnected)showCoverInCard(card,src,()=>repairCover(book,card,{force:true}));
+      return;
+    }catch(e){console.warn('Eski kapak yeniden oluşturulacak:',e);}
+  }
+  if(card.isConnected)await repairCover(book,card,{force:true});
+}
 async function repairCover(book,card=null,{force=false}={}){
-  if(book.cover)return true;
+  if(book.coverDataUrl&&!force){
+    if(card)showCoverInCard(card,book.coverDataUrl,()=>repairCover(book,card,{force:true}));
+    return true;
+  }
   if(coverRepairInflight.has(book.id))return coverRepairInflight.get(book.id);
-  const prev=coverRetryTimes.get(book.id)||0;
-  if(!force&&Date.now()-prev<12000)return false;
+  const last=coverRetryTimes.get(book.id)||0;
+  if(!force&&Date.now()-last<12000)return false;
   coverRetryTimes.set(book.id,Date.now());
   const work=(async()=>{
     let doc=null;
@@ -167,39 +211,35 @@ async function repairCover(book,card=null,{force=false}={}){
         cover=await coverFor(doc);
       }else{
         const firstPage=await dbRead('pages',book.id+':1');
-        cover=firstPage?.blob||null;
+        if(firstPage?.blob){
+          const bitmap=await createImageBitmap(firstPage.blob);
+          const canvas=document.createElement('canvas');
+          canvas.width=224;canvas.height=Math.round(224*bitmap.height/bitmap.width);
+          canvas.getContext('2d').drawImage(bitmap,0,0,canvas.width,canvas.height);
+          bitmap.close?.();
+          cover=await canvasBlob(canvas,'image/jpeg',.84);
+        }
       }
       if(!cover)return false;
-      const latest=await dbRead('books',book.id);
-      if(!latest)return false;
-      if(!latest.cover){
-        latest.cover=cover;
-        await dbPut('books',latest);
-      }else cover=latest.cover;
-      if(state.book?.id===book.id)state.book.cover=cover;
-      const container=card?.querySelector('.book-cover');
-      if(container?.isConnected&&!container.querySelector('img')){
-        container.querySelector('.cover-placeholder')?.remove();
-        const img=document.createElement('img');
-        const url=URL.createObjectURL(cover);
-        state.covers.push(url);
-        img.src=url;img.alt='Kitabın ilk sayfası';
-        container.prepend(img);
+      const dataUrl=await coverDataURL(cover);
+      const saved=await dbPatchBook(book.id,{cover,coverDataUrl:dataUrl});
+      if(state.book?.id===book.id){
+        state.book.cover=cover;
+        state.book.coverDataUrl=dataUrl;
       }
+      if(card)showCoverInCard(card,dataUrl,()=>console.warn('Oluşturulan kapak açılamadı:',book.title));
       coverRetryTimes.delete(book.id);
-      return true;
+      return !!saved;
     }catch(e){
-      console.warn('Kapak otomatik oluşturulamadı, yeniden denenecek:',book.title,e);
+      console.warn('Kapak yeniden denenecek:',book.title,e);
       return false;
-    }finally{
-      if(doc)await doc.destroy().catch(()=>{});
-    }
+    }finally{if(doc)await doc.destroy().catch(()=>{});}
   })();
   coverRepairInflight.set(book.id,work);
   try{return await work;}finally{coverRepairInflight.delete(book.id);}
 }
 async function ensureVisibleCover(serial){
-  if(!state.book||state.book.cover||state.page!==1||serial!==state.renderSerial)return;
+  if(!state.book||state.book.coverDataUrl||state.page!==1||serial!==state.renderSerial)return;
   const bookId=state.book.id;
   const source=state.book.type==='pdf'?$('pdfCanvas'):$('imagePage');
   const w=source.naturalWidth||source.width,h=source.naturalHeight||source.height;
@@ -210,12 +250,15 @@ async function ensureVisibleCover(serial){
     const ctx=thumb.getContext('2d',{alpha:false});
     ctx.fillStyle='#fff';ctx.fillRect(0,0,thumb.width,thumb.height);
     ctx.drawImage(source,0,0,thumb.width,thumb.height);
-    const cover=await imageBlob(thumb,.78);
-    const latest=await dbRead('books',bookId);
-    if(!latest||latest.cover)return;
-    latest.cover=cover;
-    await dbPut('books',latest);
-    if(state.book?.id===bookId)state.book.cover=cover;
+    const cover=await canvasBlob(thumb,'image/jpeg',.84);
+    if(!cover)throw new Error('Kapak çizilemedi.');
+    const coverDataUrl=await coverDataURL(cover);
+    if(serial!==state.renderSerial||state.book?.id!==bookId)return;
+    await dbPatchBook(bookId,{cover,coverDataUrl});
+    if(state.book?.id===bookId){
+      state.book.cover=cover;
+      state.book.coverDataUrl=coverDataUrl;
+    }
   }catch(e){console.warn('Görünen sayfadan kapak kaydedilemedi:',e);}
 }
 function percent(a,b){return b?Math.round(a*100/b):0;}
@@ -614,7 +657,7 @@ async function paintPage(serial){if(!state.book||serial!==state.renderSerial)ret
        sheet.style.aspectRatio=`${record.width} / ${record.height}`;
        sheet.style.minHeight='0';image.src=url;await new Promise((resolve,reject)=>{if(image.complete&&image.naturalWidth)return resolve();image.onload=resolve;image.onerror=()=>reject(new Error('Görsel açılamadı.'));});
     }
-    if(serial!==state.renderSerial)return;spinner.classList.add('hidden');setupDrawingCanvas();renderAnnotations();renderNotePins();if(state.page===1&&!state.book.cover)ensureVisibleCover(serial).catch(e=>console.warn('Kapak:',e));$('viewerArea').scrollTo({top:0,behavior:'auto'});
+    if(serial!==state.renderSerial)return;spinner.classList.add('hidden');setupDrawingCanvas();renderAnnotations();renderNotePins();if(state.page===1&&!state.book.coverDataUrl)ensureVisibleCover(serial).catch(e=>console.warn('Kapak:',e));$('viewerArea').scrollTo({top:0,behavior:'auto'});
   }catch(e){if(serial!==state.renderSerial)return;console.error(e);spinner.textContent='Sayfa açılamadı: '+(e.message||'bilinmeyen hata');toast('Sayfa açılamadı: '+e.message,6000);}finally{if(state.renderTask===ownTask)state.renderTask=null;}
 }
 function setupDrawingCanvas(){const sheet=$('pageSheet');const canvas=$('annotationCanvas');const w=sheet.clientWidth,h=sheet.clientHeight;if(w<2||h<2)return;const dpr=Math.min(window.devicePixelRatio||1,2);canvas.width=Math.round(w*dpr);canvas.height=Math.round(h*dpr);canvas.style.width=w+'px';canvas.style.height=h+'px';canvas.getContext('2d').setTransform(dpr,0,0,dpr,0,0);}

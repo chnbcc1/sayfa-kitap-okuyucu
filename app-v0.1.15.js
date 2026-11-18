@@ -696,6 +696,101 @@ function finishPageFlip(overlay,dir){
   const gesture={active:true,overlay,painter,progress:0};
   runCurlAnimation(gesture,1,reduced?130:750).finally(()=>{gesture.active=false;overlay.remove();});
 }
+// A tiny, in-memory cache of neighboring pages allows the next page to be visible
+// DURING the finger gesture. It never modifies the stored PDF, notes or reading position.
+const pagePreviewCache=new Map();
+function clearPagePreviewCache(){pagePreviewCache.clear();}
+function stopCurlGesture(){
+  const gesture=state.curlGesture;
+  if(!gesture)return;
+  gesture.active=false;
+  gesture.overlay?.remove();
+  gesture.preview?.remove();
+  state.curlGesture=null;
+}
+async function renderPagePreview(bookId,page,width,height){
+  if(!state.book||state.book.id!==bookId)throw new Error('Kitap değişti.');
+  const result=document.createElement('canvas');
+  result.width=width;result.height=height;
+  const ctx=result.getContext('2d',{alpha:false});
+  if(!ctx)throw new Error('Önizleme çizim alanı oluşturulamadı.');
+  ctx.fillStyle='#ffffff';ctx.fillRect(0,0,width,height);
+  let left=0,top=0,drawWidth=width,drawHeight=height;
+  if(state.book.type==='pdf'){
+    const doc=state.pdfDoc;
+    if(!doc)throw new Error('PDF okuma motoru hazır değil.');
+    const pdfPage=await doc.getPage(page);
+    const base=pdfPage.getViewport({scale:1});
+    const scale=Math.min(width/base.width,height/base.height);
+    const viewport=pdfPage.getViewport({scale});
+    drawWidth=viewport.width;drawHeight=viewport.height;
+    left=(width-drawWidth)/2;top=(height-drawHeight)/2;
+    await pdfPage.render({canvasContext:ctx,viewport,
+      transform:[1,0,0,1,left,top],background:'#ffffff'}).promise;
+  }else{
+    const record=await dbRead('pages',bookId+':'+page);
+    if(!record?.blob)throw new Error('Önizleme için sayfa bulunamadı.');
+    let bitmap=null,url=null;
+    try{
+      if(typeof createImageBitmap==='function'){
+        try{bitmap=await createImageBitmap(record.blob);}catch(e){console.warn('Önizleme resim çözme alternatifi:',e);}
+      }
+      if(!bitmap){
+        bitmap=new Image();
+        url=URL.createObjectURL(record.blob);
+        await new Promise((resolve,reject)=>{
+          bitmap.onload=resolve;
+          bitmap.onerror=()=>reject(new Error('Önizleme görseli açılamadı.'));
+          bitmap.src=url;
+        });
+      }
+      const scale=Math.min(width/bitmap.width,height/bitmap.height);
+      drawWidth=bitmap.width*scale;drawHeight=bitmap.height*scale;
+      left=(width-drawWidth)/2;top=(height-drawHeight)/2;
+      ctx.drawImage(bitmap,left,top,drawWidth,drawHeight);
+    }finally{bitmap?.close?.();if(url)URL.revokeObjectURL(url);}
+  }
+  const marks=await dbRead('marks',bookId+':'+page);
+  if(marks){
+    ctx.save();ctx.translate(left,top);
+    for(const stroke of marks.strokes||[])drawStroke(ctx,stroke,{width:drawWidth,height:drawHeight});
+    for(const note of marks.notes||[]){
+      const x=(note.x||0)*drawWidth,y=(note.y||0)*drawHeight;
+      ctx.fillStyle='#f8d66c';ctx.strokeStyle='#ffffff';ctx.lineWidth=2;
+      ctx.beginPath();ctx.arc(x,y,Math.max(6,drawWidth*.014),0,Math.PI*2);ctx.fill();ctx.stroke();
+    }
+    ctx.restore();
+  }
+  return result;
+}
+function getPagePreview(bookId,page,width,height){
+  const key=bookId+':'+page+':'+width+'x'+height;
+  if(pagePreviewCache.has(key))return pagePreviewCache.get(key);
+  const work=renderPagePreview(bookId,page,width,height).catch(error=>{
+    pagePreviewCache.delete(key);
+    throw error;
+  });
+  pagePreviewCache.set(key,work);
+  while(pagePreviewCache.size>3)pagePreviewCache.delete(pagePreviewCache.keys().next().value);
+  return work;
+}
+function scheduleAdjacentPreviews(serial){
+  if(!settings.animation||settings.tool!=='hand'||!state.book)return;
+  const bookId=state.book.id,page=state.page,total=state.book.pageCount;
+  const source=$('pdfCanvas').classList.contains('hidden')?$('imagePage'):$('pdfCanvas');
+  const w=source.naturalWidth||source.width,h=source.naturalHeight||source.height;
+  if(!w||!h)return;
+  const width=Math.min(w,860),height=Math.max(1,Math.round(width*h/w));
+  // Use a short idle delay so the book itself always renders first.
+  setTimeout(async()=>{
+    if(!state.book||state.book.id!==bookId||state.page!==page||serial!==state.renderSerial)return;
+    for(const target of [page+1,page-1]){
+      if(target<1||target>total||!state.book||state.book.id!==bookId||serial!==state.renderSerial)break;
+      try{await getPagePreview(bookId,target,width,height);}
+      catch(e){console.warn('Komşu sayfa önizlemesi:',e);}
+    }
+  },180);
+}
 async function goToPage(number,animate=true){
   if(!state.book)return;
   number=Math.max(1,Math.min(state.book.pageCount,Number(number)||1));

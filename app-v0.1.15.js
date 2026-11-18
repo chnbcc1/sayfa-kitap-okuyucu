@@ -1002,7 +1002,15 @@ function setupSwipeGestures(){
       return;
     }
     const gesture=state.curlGesture;
-    if(!gesture?.active||gesture.page!==pos.page||gesture.bookId!==pos.bookId)return;
+    if(!gesture?.active){
+      // Preserve very fast swipes on browsers that coalesce touchmove events.
+      const threshold=Math.max(50,Math.min(area.clientWidth*.16,88));
+      if(Math.abs(dx)>threshold&&Math.abs(dx)>Math.abs(dy)*1.4){
+        goToPage(state.page+(dx<0?1:-1),true).catch(error=>toast(error.message,5000));
+      }
+      return;
+    }
+    if(gesture.page!==pos.page||gesture.bookId!==pos.bookId)return;
     // A half-turned page stays under the finger until release. On release it
     // completes past the midpoint, or springs gently back if dragged less.
     const elapsed=Math.max(1,performance.now()-pos.at);
@@ -1021,6 +1029,9 @@ function setupSwipeGestures(){
       settleCurlGesture(gesture,false).catch(()=>stopCurlGesture());
     }
   },{passive:true});
+  document.addEventListener('visibilitychange',()=>{
+    if(document.hidden){start=null;stopCurlGesture();}
+  });
 }
 function togglePenPanel(){
   const panel=$('penPanel'),open=panel.classList.contains('hidden');

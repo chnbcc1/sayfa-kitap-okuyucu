@@ -102,3 +102,55 @@ dialog:not([open]){display:none!important}
 .library-safety-icon:active{transform:scale(.96)}
 .library-safety-icon svg{width:19px;height:19px}
 @media(max-width:700px){.library-heading-title{gap:9px}.library-safety-icon{width:35px;height:35px;min-width:35px;border-radius:50%}.library-safety-icon svg{width:19px;height:19px}}
+
+/* Sayfa v0.1.11 — solid sticky header and balanced library controls. */
+body:not(.reading-mode) .topbar{
+  position:sticky;
+  top:0;
+  z-index:60;
+  background:var(--paper);
+  opacity:1;
+  filter:none;
+  -webkit-backdrop-filter:none;
+  backdrop-filter:none;
+  box-shadow:0 1px 0 var(--border);
+}
+.library-heading-copy{min-width:0}
+.library-heading-actions{display:flex;align-items:center;justify-content:flex-end;gap:12px;min-width:0}
+.library-heading-actions input[type="search"]{flex:0 1 270px;min-width:0}
+.library-heading-actions .library-safety-icon{
+  flex:0 0 40px;
+  width:40px;
+  height:40px;
+  min-width:40px;
+  border-radius:12px;
+  background:var(--paper);
+  border:1px solid var(--border);
+}
+.library-heading-actions .library-safety-icon svg{width:21px;height:21px}
+@media(max-width:700px){
+  body:not(.reading-mode) .topbar{position:sticky;top:0;z-index:60;background:var(--paper)}
+  .section-heading{
+    display:grid;
+    grid-template-columns:minmax(0,1fr) 40px;
+    grid-template-areas:"title safety" "search search";
+    align-items:center;
+    gap:11px 12px;
+  }
+  .library-heading-copy{grid-area:title}
+  .library-heading-copy h2{margin:0 0 3px}
+  .library-heading-actions{display:contents}
+  .section-heading .library-heading-actions input[type="search"]{
+    grid-area:search;
+    width:100%;
+    min-width:0;
+    max-width:none;
+    font-size:16px;
+  }
+  .section-heading .library-heading-actions .library-safety-icon{
+    grid-area:safety;
+    justify-self:end;
+    width:40px;height:40px;min-width:40px;
+    border-radius:12px;
+  }
+}

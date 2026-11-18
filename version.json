@@ -1,5 +1,5 @@
 {
-  "version": "0.1.15",
+  "version": "0.1.16",
   "released": "2026-11-18",
-  "summary": "Parmakla eş zamanlı canlı sayfa kıvrımı, alttaki sayfanın sürükleme sırasında görünmesi, bırakınca tamamla/geri dön ve komşu sayfa önbelleği."
+  "summary": "Sayfa kıvrımı artık rulo gibi düz bir şerit değil: parmağın başladığı yüksekliğe göre köşeden çapraz ve giderek incelen kâğıt katı."
 }

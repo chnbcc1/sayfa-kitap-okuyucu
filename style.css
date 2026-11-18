@@ -154,3 +154,67 @@ body:not(.reading-mode) .topbar{
     border-radius:12px;
   }
 }
+
+/* Sayfa v0.1.12 — clear mobile header, shield beside refresh, predictable search placement. */
+body:not(.reading-mode) .topbar{
+  background-color:var(--paper);
+  -webkit-backdrop-filter:none;
+  backdrop-filter:none;
+  isolation:isolate;
+}
+.top-actions{flex-wrap:nowrap}
+.top-actions .library-safety-icon{
+  flex:0 0 40px;
+  width:40px;
+  height:40px;
+  min-width:40px;
+  border:1px solid var(--border);
+  border-radius:12px;
+  background:transparent;
+  box-shadow:none;
+  color:var(--accent);
+  transition:background-color .18s,border-color .18s;
+}
+.top-actions .library-safety-icon svg{width:20px;height:20px}
+.top-actions .library-safety-icon:active{background:var(--soft)}
+.library-heading-actions{display:flex;align-items:center;min-width:0}
+.library-heading-actions input[type="search"]{min-width:0;flex:1 1 270px}
+@media(max-width:700px){
+  body:not(.reading-mode) .topbar{
+    height:64px;
+    min-height:64px;
+    padding:8px 12px;
+    gap:7px;
+  }
+  .brand{min-width:0;flex-shrink:1;gap:8px}
+  .brand-icon{flex:0 0 37px}
+  .brand strong{font-size:21px}
+  .brand small{font-size:8px;letter-spacing:0;white-space:nowrap}
+  .top-actions{flex:0 0 auto;gap:5px}
+  .top-actions .icon-btn,.top-actions .library-safety-icon{
+    flex:0 0 35px;
+    width:35px;
+    height:35px;
+    min-width:35px;
+    border-radius:11px;
+  }
+  .top-actions .library-safety-icon svg{width:19px;height:19px}
+  .section-heading{
+    display:flex;
+    flex-direction:column;
+    align-items:stretch;
+    justify-content:flex-start;
+    gap:13px;
+    margin:29px 0 15px;
+  }
+  .library-heading-copy{min-width:0}
+  .library-heading-actions{display:block;width:100%}
+  .section-heading .library-heading-actions input[type="search"]{
+    display:block;
+    width:100%;
+    max-width:100%;
+    min-width:0;
+    padding:12px 15px;
+    font-size:16px;
+  }
+}

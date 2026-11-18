@@ -1,5 +1,5 @@
 {
-  "version": "0.1.14",
+  "version": "0.1.15",
   "released": "2026-11-18",
-  "summary": "Sayfa geçişinde mevcut üst sayfa kıvrılarak alttaki yeni sayfayı ortaya çıkarıyor; kitaplığın altındaki gereksiz açıklama kaldırıldı."
+  "summary": "Parmakla eş zamanlı canlı sayfa kıvrımı, alttaki sayfanın sürükleme sırasında görünmesi, bırakınca tamamla/geri dön ve komşu sayfa önbelleği."
 }

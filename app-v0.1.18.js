@@ -1,6 +1,6 @@
 /* Sahife v0.1.18 — same safe reading engine, renamed brand and home icon. */
 import {createPaperFoldRenderer} from './paper-fold-v0.1.17.js';
-import {setupSafeLibrary,bookDigest} from './safety-v0.1.7.js';
+import {setupSafeLibrary,bookDigest} from './safety-v0.1.18.js';
 /* Sayfa v0.1 — MIT. A browser-first, privacy-preserving personal PDF library. */
 const $ = (id) => document.getElementById(id);
 // Keep main PDF.js API and its worker at exactly the same pinned release.

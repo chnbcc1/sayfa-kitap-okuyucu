@@ -690,7 +690,7 @@ function runCurlAnimation(gesture,to,duration){
       const t=Math.min(1,(now-start)/Math.max(1,duration));
       const progress=from+(to-from)*ease(t);
       gesture.progress=progress;
-      gesture.painter(progress);
+      gesture.painter(progress,gesture.contactY??.58);
       if(t<1)requestAnimationFrame(tick);
       else resolve(true);
     }
@@ -878,7 +878,7 @@ async function prepareCurlPreview(gesture){
     sheet.insertBefore(cached,gesture.overlay);
     gesture.preview=cached;
     gesture.ready=true;
-    gesture.painter(gesture.progress);
+    gesture.painter(gesture.progress,gesture.contactY??.58);
     return true;
   }catch(error){
     console.warn('Canlı sayfa önizlemesi hazırlanamıyor:',error);
@@ -969,6 +969,11 @@ function setupSwipeGestures(){
           active:true,ready:false,settling:false,overlay,painter,direction,target,
           bookId:start.bookId,page:start.page,progress:0,
           startX:start.x,startAt:start.at,lastX:t.clientX,
+          // The diagonal crease is anchored to the height of the first touch.
+          // Keep this stable through the drag to prevent a twitching fold line.
+          contactY:Math.max(.18,Math.min(.82,
+            (start.y-$('pageSheet').getBoundingClientRect().top)/
+            Math.max(1,$('pageSheet').getBoundingClientRect().height))),
           preview:null,previewPromise:null,framePending:false,error:null
         };
         state.curlGesture=gesture;
@@ -989,7 +994,7 @@ function setupSwipeGestures(){
       gesture.framePending=true;
       requestAnimationFrame(()=>{
         gesture.framePending=false;
-        if(gesture.active&&!gesture.settling&&gesture.ready)gesture.painter(gesture.progress);
+        if(gesture.active&&!gesture.settling&&gesture.ready)gesture.painter(gesture.progress,gesture.contactY??.58);
       });
     }
   },{passive:false});
@@ -1024,7 +1029,7 @@ function setupSwipeGestures(){
     const elapsed=Math.max(1,performance.now()-pos.at);
     const forwardDistance=Math.max(0,gesture.direction==='next'?-dx:dx);
     gesture.progress=Math.min(1,forwardDistance/Math.max(1,$('pageSheet').getBoundingClientRect().width));
-    if(gesture.ready)gesture.painter(gesture.progress);
+    if(gesture.ready)gesture.painter(gesture.progress,gesture.contactY??.58);
     const quickFlick=forwardDistance>Math.max(48,area.clientWidth*.14)&&forwardDistance/elapsed>.55;
     const shouldComplete=gesture.progress>=.45||quickFlick;
     settleCurlGesture(gesture,shouldComplete).catch(error=>{

@@ -1,5 +1,5 @@
 {
-  "version": "0.1.11",
+  "version": "0.1.12",
   "released": "2026-11-18",
-  "summary": "Kaydırırken kaybolmayan opak üst başlık; mobilde kitaplık koruma simgesinin ve aramanın daha dengeli yerleşimi."
+  "summary": "iOS 27 ana ekran uygulaması üst bulanıklığı için uyumluluk katmanı; yedek kalkanı güncelleme düğmesi yanında; arama kutusu mobilde tam genişlikte."
 }

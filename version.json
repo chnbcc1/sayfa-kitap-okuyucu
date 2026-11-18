@@ -1,5 +1,5 @@
 {
-  "version": "0.1.17",
+  "version": "0.1.18",
   "released": "2026-11-18",
-  "summary": "Rulo şerit animasyonu kaldırıldı: üstteki gerçek sayfa köşeden, çapraz katlama çizgisi boyunca yansıtılarak çevriliyor. Parmakla eş zamanlı kontrol korundu."
+  "summary": "Uygulamanın adı Sahife oldu; seçilen yeşil-krem kitap logosu ana ekran simgesine, tarayıcı başlığına ve uygulama arayüzüne eklendi. Kitaplık verileri değişmedi."
 }

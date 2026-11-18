@@ -629,12 +629,17 @@ function finishPageFlip(overlay,dir){
       ctx.save();
       ctx.globalAlpha=.15;
       const sample=Math.max(1,Math.min(width*1.45,w));
+      const bandHeight=Math.max(1,Math.min(rowH+1,h-y));
       if(next){
+        const sourceX=Math.max(0,Math.min(w-sample,p.front-sample*.12));
         ctx.translate(p.crease,0);ctx.scale(-1,1);
-        ctx.drawImage(original,Math.max(0,p.front-sample*.12),y,sample,rowH+1,0,y,width,rowH+1);
+        ctx.drawImage(original,sourceX,y,sample,bandHeight,0,y,width,bandHeight);
       }else{
+        const sourceX=Math.max(0,Math.min(w-sample,p.front-sample));
         ctx.translate(p.crease,0);ctx.scale(-1,1);
-        ctx.drawImage(original,Math.max(0,p.front-sample),y,sample,rowH+1,0,y,width,rowH+1);
+        // After mirroring, negative local x places the fold to the RIGHT,
+        // above the original top page, not over the revealed page.
+        ctx.drawImage(original,sourceX,y,sample,bandHeight,-width,y,width,bandHeight);
       }
       ctx.restore();
       const a=Math.min(p.crease,p.front),b=Math.max(p.crease,p.front);
